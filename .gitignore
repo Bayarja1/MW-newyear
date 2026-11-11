@@ -19,3 +19,13 @@ logs/
 # beside it.
 /.plugins/
 /.opencode-skills/
+
+# Private runtime data and account delivery exports
+/data/
+/private-access*.csv
+/employees*.csv
+*.sqlite*
+!.env.example
+
+.pnpm-store/
+/server/provision.mjs

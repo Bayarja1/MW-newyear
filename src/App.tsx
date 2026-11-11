@@ -1,407 +1,154 @@
-import { ChangeEvent, FormEvent, useMemo, useRef, useState } from "react";
-
-type Page = "home" | "mystery" | "hunt" | "letters" | "quiz" | "leaderboard" | "admin";
-type Day = "Даваа" | "Мягмар" | "Лхагва" | "Пүрэв" | "Баасан";
-
-const days: Day[] = ["Даваа", "Мягмар", "Лхагва", "Пүрэв", "Баасан"];
-const employees = [
-  ["Болор Эрдэнэ", "Бүтээгдэхүүн"],
-  ["Анударь Бат", "Маркетинг"],
-  ["Тэмүүлэн Ган", "Технологи"],
-  ["Саруул Мөнх", "Хүний нөөц"],
-  ["Номин-Эрдэнэ Дорж", "Санхүү"],
-  ["Идэр Баяр", "Борлуулалт"],
-  ["Мишээл Энх", "Дизайн"],
-  ["Хүслэн Төгс", "Технологи"],
-  ["Ариунзаяа Бат", "Үйл ажиллагаа"],
-  ["Билгүүн Оргил", "Маркетинг"],
-] as const;
-
-const quizQuestions = [
-  {
-    question: "Шинэ жилийн анхны модыг чимэглэсэн уламжлал аль улсаас дэлгэрсэн бэ?",
-    answers: ["Герман", "Франц", "Норвеги", "Итали"],
-    correct: 0,
-    explanation:
-      "Орчин үеийн гацуур мод чимэглэх уламжлал XVI зууны Германаас дэлгэрсэн гэж үздэг.",
-  },
-  {
-    question: "Манай хамт олон энэ жил хэдэн шинэ бүтээгдэхүүн танилцуулсан бэ?",
-    answers: ["Хоёр", "Гурав", "Дөрөв", "Тав"],
-    correct: 2,
-    explanation: "Бид энэ жил дөрвөн шинэ бүтээгдэхүүнээ хэрэглэгчдэд хүргэсэн.",
-  },
-];
-
-const navItems: { id: Page; label: string; icon: string }[] = [
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import {
+  api,
+  ApiError,
+  type AppState,
+  type AdminData,
+  type Gift,
+  type LiveQuiz,
+  type Question,
+  type Scores,
+} from "./api";
+import { Brand, SantaVillage, Snowfall, Celebration, Icon } from "./components/Festive";
+import "./backend.css";
+type Page = "home" | "mystery" | "hunt" | "letters" | "quiz" | "leaderboard" | "admin" | "profile";
+const days = ["Даваа", "Мягмар", "Лхагва", "Пүрэв", "Баасан"];
+const nav: { id: Page; label: string; icon: string }[] = [
   { id: "home", label: "Миний долоо хоног", icon: "⌂" },
   { id: "mystery", label: "Энэ хэн бэ?", icon: "?" },
   { id: "hunt", label: "Бэлгийн эрэл", icon: "◇" },
   { id: "letters", label: "Нууц захиа", icon: "✉" },
   { id: "quiz", label: "Сорил", icon: "◆" },
   { id: "leaderboard", label: "Оноо", icon: "♛" },
-  { id: "admin", label: "Зохион байгуулагч", icon: "⚙" },
+  { id: "admin", label: "Удирдлага", icon: "⚙" },
 ];
-
-function Icon({
-  name,
-  size = 18,
-}: {
-  name: "arrow" | "search" | "lock" | "camera" | "check" | "clock" | "spark";
-  size?: number;
-}) {
-  const paths = {
-    arrow: <path d="M5 12h14m-5-5 5 5-5 5" />,
-    search: (
-      <>
-        <circle cx="11" cy="11" r="7" />
-        <path d="m20 20-4-4" />
-      </>
-    ),
-    lock: (
-      <>
-        <rect x="5" y="10" width="14" height="10" rx="2" />
-        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-      </>
-    ),
-    camera: (
-      <>
-        <path d="M4 7h4l2-2h4l2 2h4v12H4z" />
-        <circle cx="12" cy="13" r="3" />
-      </>
-    ),
-    check: <path d="m5 12 4 4L19 6" />,
-    clock: (
-      <>
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 7v5l3 2" />
-      </>
-    ),
-    spark: <path d="m12 2 1.5 6.5L20 10l-6.5 1.5L12 18l-1.5-6.5L4 10l6.5-1.5z" />,
+const total = (s: Scores) => s.mystery + s.gift + s.letters + s.quiz;
+function Header({ eyebrow, title, intro }: { eyebrow: string; title: string; intro: string }) {
+  return (
+    <header className="page-header">
+      <span className="eyebrow">{eyebrow}</span>
+      <h1>{title}</h1>
+      <p>{intro}</p>
+    </header>
+  );
+}
+function Empty({ children }: { children: ReactNode }) {
+  return <section className="panel empty-state">{children}</section>;
+}
+function useAction() {
+  const [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  const run = async (fn: () => Promise<void>) => {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await fn();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Алдаа гарлаа.");
+    } finally {
+      setBusy(false);
+    }
   };
-  return (
-    <svg
-      aria-hidden="true"
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      {paths[name]}
-    </svg>
-  );
+  return { busy, error, run };
 }
-
-function Snowfall() {
-  return (
-    <div className="snowfall" aria-hidden="true">
-      {Array.from({ length: 28 }, (_, i) => (
-        <i key={i} style={{ "--i": i } as React.CSSProperties} />
-      ))}
-    </div>
-  );
+function ErrorNote({ message }: { message: string }) {
+  return message ? (
+    <p className="feedback error" role="alert">
+      {message}
+    </p>
+  ) : null;
 }
-
-function Celebration({ active }: { active: boolean }) {
-  if (!active) return null;
+function Login({ onLogin }: { onLogin: () => Promise<void> }) {
+  const { busy, error, run } = useAction();
   return (
-    <div className="celebration" aria-hidden="true">
-      {Array.from({ length: 22 }, (_, i) => (
-        <i key={i} style={{ "--i": i } as React.CSSProperties} />
-      ))}
-      <b className="firework one" />
-      <b className="firework two" />
-    </div>
-  );
-}
-
-function Brand() {
-  return (
-    <button className="brand" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
-      <span className="brand-mark">
-        <Icon name="spark" size={18} />
-      </span>
-      <span>
-        <strong>Догдлол</strong>
-        <small>Жижигхэн нууц. Томхон догдлол.</small>
-      </span>
-    </button>
-  );
-}
-
-function SantaVillage() {
-  return (
-    <div className="village-art" aria-label="Өвлийн баярын тосгон">
-      <span className="ornament ornament-a" />
-      <span className="ornament ornament-b" />
-      <span className="ornament ornament-c" />
-      <svg className="hero-tree" viewBox="0 0 230 350" role="img" aria-label="Гэрэлт гацуур мод">
-        <defs>
-          <linearGradient id="treeG" x1="0" x2="1">
-            <stop stopColor="#123f31" />
-            <stop offset="1" stopColor="#2d654f" />
-          </linearGradient>
-          <linearGradient id="goldG" x1="0" x2="1">
-            <stop stopColor="#9d7130" />
-            <stop offset=".5" stopColor="#f6df9d" />
-            <stop offset="1" stopColor="#ad7b32" />
-          </linearGradient>
-        </defs>
-        <path d="m115 23 15 31-15-6-15 6z" fill="url(#goldG)" />
-        <path d="M115 44 55 145h34L37 224h44l-61 83h190l-61-83h44l-52-79h34z" fill="url(#treeG)" />
-        <path
-          d="M53 166c41 23 85 21 126-1M47 245c47 21 95 21 138 0"
-          fill="none"
-          stroke="#d5b46d"
-          strokeWidth="4"
-          strokeLinecap="round"
-        />
-        {[
-          ["78", "135"],
-          ["132", "107"],
-          ["111", "179"],
-          ["157", "190"],
-          ["69", "234"],
-          ["132", "257"],
-          ["173", "276"],
-          ["99", "292"],
-        ].map(([cx, cy], i) => (
-          <g key={i} className={`tree-light light-${i}`}>
-            <circle cx={cx} cy={cy} r="6" fill={i % 3 === 0 ? "#b6433c" : "#f8d778"} />
-            <circle cx={cx} cy={cy} r="13" fill="#f8d778" opacity=".14" />
-          </g>
-        ))}
-        <path d="M92 307h46v35H92z" fill="#81582f" />
-        <ellipse cx="115" cy="340" rx="94" ry="12" fill="#fffaf0" />
-      </svg>
-      <svg
-        className="santa"
-        viewBox="0 0 230 310"
-        role="img"
-        aria-label="Гараа даллаж буй өвлийн өвгөн"
+    <main className="login-layout">
+      <section>
+        <Brand />
+        <h1>
+          Ид шидийн өртөөндөө
+          <br />
+          <em>тавтай морил.</em>
+        </h1>
+        <p>Хамт олны баярын долоо хоног.</p>
+        <SantaVillage />
+      </section>
+      <form
+        className="panel login-panel"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const f = new FormData(e.currentTarget);
+          void run(async () => {
+            await api("/auth/login", "POST", Object.fromEntries(f));
+            await onLogin();
+          });
+        }}
       >
-        <ellipse cx="116" cy="292" rx="78" ry="12" fill="#d9d0bd" opacity=".55" />
-        <path d="M72 150c-25 20-35 75-29 131h143c5-65-10-117-44-137z" fill="#9f312f" />
-        <path d="M90 151v130h28V157" fill="#f5ecdc" opacity=".92" />
-        <path d="M44 221c-18-10-28 1-25 13 4 14 19 17 30 7" fill="#f2c5a5" />
-        <g className="santa-arm">
-          <path
-            d="M153 165c25-7 33-30 42-50"
-            fill="none"
-            stroke="#9f312f"
-            strokeWidth="29"
-            strokeLinecap="round"
+        <span className="eyebrow">Зөвхөн ажилтнуудад</span>
+        <h2>Нэвтрэх</h2>
+        <label>
+          Нэвтрэх нэр
+          <input name="username" autoComplete="username" required maxLength={80} />
+        </label>
+        <label>
+          Нууц үг
+          <input
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            required
+            maxLength={128}
           />
-          <path
-            d="M195 116c-4-17 5-32 16-30 12 2 9 16 2 23 10-3 15 5 9 12-8 10-19 9-27-5z"
-            fill="#f2c5a5"
-          />
-        </g>
-        <circle cx="115" cy="108" r="49" fill="#f2c5a5" />
-        <path
-          d="M67 104c4 45 22 70 48 71 27 0 45-26 48-70-9 15-22 18-31 9-7 11-23 11-31 0-10 9-24 5-34-10z"
-          fill="#fffaf0"
-        />
-        <path d="M78 76c9-47 50-60 80-24l17 23-98 4z" fill="#a43431" />
-        <circle cx="176" cy="76" r="15" fill="#fffaf0" />
-        <circle cx="99" cy="102" r="3.5" fill="#23352d" />
-        <circle cx="131" cy="102" r="3.5" fill="#23352d" />
-        <path
-          d="M106 121c7 5 14 5 20 0"
-          fill="none"
-          stroke="#9d4f43"
-          strokeWidth="3"
-          strokeLinecap="round"
-        />
-        <path d="M41 278h57v16H37zM132 278h57l5 16h-62z" fill="#302c29" />
-      </svg>
-      <svg
-        className="snowman"
-        viewBox="0 0 150 230"
-        role="img"
-        aria-label="Инээмсэглэсэн цасан хүн"
-      >
-        <ellipse cx="75" cy="217" rx="62" ry="9" fill="#d9d0bd" opacity=".55" />
-        <circle cx="75" cy="161" r="55" fill="#fffdf8" />
-        <circle cx="75" cy="80" r="39" fill="#fffdf8" />
-        <path
-          d="M46 56h58M55 51l5-35h34l6 35"
-          fill="#25483c"
-          stroke="#25483c"
-          strokeWidth="8"
-          strokeLinecap="round"
-        />
-        <g className="snowman-eyes">
-          <circle cx="63" cy="75" r="3.5" fill="#26372f" />
-          <circle cx="87" cy="75" r="3.5" fill="#26372f" />
-        </g>
-        <path d="m75 81 20 6-20 4z" fill="#d9893e" />
-        <path
-          d="M64 98c8 6 16 6 23 0"
-          fill="none"
-          stroke="#26372f"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-        />
-        <path d="M40 112c24 13 48 14 72 0l-7 18c-21 9-41 7-60-3z" fill="#a73b37" />
-        <circle cx="75" cy="151" r="4" fill="#af813b" />
-        <circle cx="75" cy="173" r="4" fill="#af813b" />
-      </svg>
-      <div className="snowbank" />
-    </div>
+        </label>
+        <ErrorNote message={error} />
+        <button className="primary wide" disabled={busy}>
+          {busy ? "Нэвтэрч байна…" : "Нэвтрэх →"}
+        </button>
+        <p>Нэвтрэх эрхээ зохион байгуулагчаас авна уу.</p>
+      </form>
+    </main>
   );
 }
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="stat">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-function CalendarDoors({
-  day,
-  setDay,
-  openPage,
-}: {
-  day: Day;
-  setDay: (d: Day) => void;
-  openPage: (p: Page) => void;
-}) {
-  const configs = [
-    {
-      day: "Даваа" as Day,
-      date: "30",
-      title: "Хоёр нууц, хоёр адал явдал",
-      detail: "Энэ хэн бэ? · Бэлгийн эрэл",
-      points: "200 хүртэл оноо",
-      page: "mystery" as Page,
-    },
-    {
-      day: "Мягмар" as Day,
-      date: "31",
-      title: "Чамд хэлэх нэг сайхан үг",
-      detail: "Хоёр нууц захиа",
-      points: "100 хүртэл оноо",
-      page: "letters" as Page,
-    },
-    {
-      day: "Лхагва" as Day,
-      date: "01",
-      title: "Шинэ жилийн сорил",
-      detail: "Хамтдаа тоглох шууд сорил",
-      points: "100 хүртэл оноо",
-      page: "quiz" as Page,
-    },
-    {
-      day: "Пүрэв" as Day,
-      date: "02",
-      title: "Өнөөдөр түр амсхийе.",
-      detail: "Маргааш нууц тайлагдана.",
-      points: "Оноогүй амралт",
-      page: "home" as Page,
-    },
-    {
-      day: "Баасан" as Day,
-      date: "03",
-      title: "Ид шидийн тайлал",
-      detail: "Захиа · Оноо · Шагнал",
-      points: "Шинэ оноо нэмэгдэхгүй",
-      page: "leaderboard" as Page,
-    },
-  ];
-  const current = days.indexOf(day);
-  return (
-    <div className="doors">
-      {configs.map((item, idx) => {
-        const locked = idx > current;
-        return (
-          <button
-            key={item.day}
-            className={`door ${idx === current ? "current" : ""} ${locked ? "locked" : ""}`}
-            onClick={() => (locked ? undefined : (setDay(item.day), openPage(item.page)))}
-          >
-            <span className="door-day">{item.day}</span>
-            <b className="door-date">{item.date}</b>
-            <span className="door-copy">
-              <strong>{item.title}</strong>
-              <small>{item.detail}</small>
-            </span>
-            <span className="door-points">
-              {locked ? (
-                <>
-                  <Icon name="lock" size={14} /> {item.day} гарагт нээгдэнэ
-                </>
-              ) : (
-                item.points
-              )}
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function CommunityTree({ count }: { count: number }) {
+function Community({ state }: { state: AppState }) {
+  const count = state.employees.length;
   return (
     <section className="community-card panel">
       <div>
         <span className="eyebrow">Хамтын ид шид</span>
-        <h2>30 захиа — 30 гэрэл</h2>
+        <h2>
+          {count} захиа — {count} гэрэл
+        </h2>
         <p>Хүн бүрийн анхны битүүмжилсэн захиа гацуурын нэг чимгийг асаана.</p>
         <div className="progress-label">
-          <strong>{count} / 30 хүн захиагаа бичсэн</strong>
-          <span>{Math.round((count / 30) * 100)}%</span>
+          <strong>
+            {state.community} / {count} хүн захиагаа бичсэн
+          </strong>
         </div>
         <div className="progress">
-          <i style={{ width: `${(count / 30) * 100}%` }} />
+          <i style={{ width: `${count ? (state.community / count) * 100 : 0}%` }} />
         </div>
-        {count === 30 && (
-          <div className="success-note">Бүх гэрэл аслаа. Хамтын гэнэтийн бэлэг нээгдлээ!</div>
+        {count > 0 && state.community === count && (
+          <div className="success-note">Бүх гэрэл аслаа. Хамтын зорилго биеллээ!</div>
         )}
       </div>
-      <svg className="mini-tree" viewBox="0 0 240 230" aria-hidden="true">
-        <path d="M120 12 65 93h30l-52 75h154l-52-75h30z" fill="#174737" />
-        {Array.from({ length: 30 }, (_, i) => {
-          const row = Math.floor(i / 6),
-            col = i % 6;
-          return (
-            <circle
-              key={i}
-              cx={77 + col * 18 + (row % 2) * 4}
-              cy={77 + row * 23}
-              r="5"
-              className={i < count ? "lit" : ""}
-            />
-          );
-        })}
-        <path d="M104 168h32v42h-32z" fill="#8d6235" />
-        <ellipse cx="120" cy="210" rx="85" ry="12" fill="#f7f2e8" />
-      </svg>
+      <div className="community-stars">
+        {state.employees.map((p, i) => (
+          <span key={p.id} className={i < state.community ? "lit" : ""}>
+            ✦
+          </span>
+        ))}
+      </div>
     </section>
   );
 }
-
-function Home({
-  day,
-  setDay,
-  setPage,
-  score,
-  letterCount,
-}: {
-  day: Day;
-  setDay: (d: Day) => void;
-  setPage: (p: Page) => void;
-  score: number;
-  letterCount: number;
-}) {
+function Home({ state, navigate }: { state: AppState; navigate: (p: Page) => void }) {
+  const cards = [
+    ["Хоёр нууц, хоёр адал явдал", "Энэ хэн бэ? · Бэлгийн эрэл", "200 хүртэл оноо"],
+    ["Чамд хэлэх нэг сайхан үг", "Хоёр нууц захиа", "100 хүртэл оноо"],
+    ["Шинэ жилийн сорил", "Хамтдаа тоглох шууд сорил", "100 хүртэл оноо"],
+    ["Өнөөдөр түр амсхийе.", "Маргааш нууц тайлагдана.", "Үйл ажиллагаагүй"],
+    ["Ид шидийн тайлал", "Захиа · Оноо · Шагнал", "Шинэ оноо нэмэгдэхгүй"],
+  ];
   return (
     <main>
       <section className="hero">
@@ -412,177 +159,208 @@ function Home({
             <br />
             <em>ид шидийг</em> хамтдаа бүтээе.
           </h1>
-          <p className="hero-greeting">Сайн уу, Болор оо!</p>
+          <p className="hero-greeting">Сайн уу, {state.me.name}!</p>
           <div className="hero-stats">
-            <Stat label="Миний оноо" value={`${score} / 400`} />
-            <Stat label="Оролцогчид" value="30 хамтрагч" />
-            <Stat
-              label="Өнөөдөр"
-              value={
-                day === "Даваа"
-                  ? "2 тоглоом нээлттэй"
-                  : day === "Пүрэв"
-                    ? "Амралтын өдөр"
-                    : "1 үйл явдал"
-              }
-            />
+            <div className="stat">
+              <small>Миний оноо</small>
+              <strong>{total(state.scores)} / 400</strong>
+            </div>
+            <div className="stat">
+              <small>Оролцогчид</small>
+              <strong>{state.employees.length} хамтрагч</strong>
+            </div>
+            <div className="stat">
+              <small>Өнөөдөр</small>
+              <strong>
+                {state.stage < 0 ? "Хүлээгдэж байна" : days[state.stage] || "Арга хэмжээ дууссан"}
+              </strong>
+            </div>
           </div>
           <button
             className="primary"
             onClick={() =>
-              setPage(
-                day === "Даваа"
+              navigate(
+                state.stage === 0
                   ? "mystery"
-                  : day === "Мягмар"
+                  : state.stage === 1
                     ? "letters"
-                    : day === "Лхагва"
+                    : state.stage === 2
                       ? "quiz"
                       : "leaderboard",
               )
             }
           >
-            Өнөөдрийн ид шидийг нээх <Icon name="arrow" />
+            Миний үйл ажиллагаа <Icon name="arrow" />
           </button>
         </div>
         <SantaVillage />
       </section>
       <section className="section-wrap">
-        <div className="section-heading">
-          <div>
-            <span className="eyebrow">Арван хоёрдугаар сарын 30 — нэгдүгээр сарын 03</span>
-            <h2>Миний баярын долоо хоног</h2>
-          </div>
-          <p>Хаалга бүрт шинэ дурсамж хүлээж байна.</p>
+        <Header
+          eyebrow={
+            state.settings.start_date
+              ? `${state.settings.start_date} · Улаанбаатарын цаг`
+              : "Эхлэх огноог зохион байгуулагч тохируулна"
+          }
+          title="Миний баярын долоо хоног"
+          intro="Хаалга бүрт шинэ дурсамж хүлээж байна."
+        />
+        <div className="doors">
+          {cards.map(([title, detail, points], i) => (
+            <div
+              key={i}
+              className={`door ${state.stage === i ? "current" : ""} ${!state.access[i].open ? "locked" : ""}`}
+            >
+              <span className="door-day">{days[i]}</span>
+              <b className="door-date">0{i + 1}</b>
+              <span className="door-copy">
+                <strong>{title}</strong>
+                <small>{detail}</small>
+              </span>
+              <span className="door-points">{!state.access[i].open ? "Түгжээтэй" : points}</span>
+              {i === 0 && state.access[0].open ? (
+                <div className="button-row">
+                  <button className="secondary" onClick={() => navigate("mystery")}>
+                    Таах
+                  </button>
+                  <button className="secondary" onClick={() => navigate("hunt")}>
+                    Бэлэг хайх
+                  </button>
+                </div>
+              ) : (
+                i !== 3 && (
+                  <button
+                    className="secondary"
+                    disabled={!state.access[i].open}
+                    onClick={() =>
+                      navigate((["mystery", "letters", "quiz", "home", "leaderboard"] as Page[])[i])
+                    }
+                  >
+                    Нээх →
+                  </button>
+                )
+              )}
+            </div>
+          ))}
         </div>
-        <CalendarDoors day={day} setDay={setDay} openPage={setPage} />
-        <CommunityTree count={letterCount} />
+        <Community state={state} />
       </section>
     </main>
   );
 }
-
-function PageHeader({ eyebrow, title, intro }: { eyebrow: string; title: string; intro: string }) {
-  return (
-    <header className="page-header">
-      <span className="eyebrow">{eyebrow}</span>
-      <h1>{title}</h1>
-      <p>{intro}</p>
-    </header>
-  );
-}
-
-function Mystery({ onScore }: { onScore: () => void }) {
-  const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState("");
-  const [result, setResult] = useState<"none" | "correct" | "wrong" | "done">("none");
-  const options = employees.filter((e) => e[0].toLowerCase().includes(query.toLowerCase()));
-  const submit = () => {
-    if (!selected || result !== "none") return;
-    if (selected === "Анударь Бат") {
-      setResult("correct");
-      onScore();
-    } else setResult("wrong");
-  };
+function Mystery({ state, refresh }: { state: AppState; refresh: () => Promise<void> }) {
+  const [query, setQuery] = useState(""),
+    [chosen, setChosen] = useState(""),
+    [result, setResult] = useState<boolean | null>(null);
+  const { busy, error, run } = useAction();
+  const [activeId, setActiveId] = useState(() => state.mystery.find((q) => q.chosen === null)?.id);
+  const current = state.mystery.find((q) => q.id === activeId);
+  const answered = state.mystery.filter((q) => q.chosen !== null).length;
+  if (!state.mystery.length)
+    return <Empty>Зохион байгуулагч ажилтнуудын баримтыг бэлдэж байна.</Empty>;
+  if (!current)
+    return (
+      <Empty>
+        <h2>Бүх 10 асуултаа дуусгалаа!</h2>
+        <p>Таны оноо: {state.scores.mystery} / 100</p>
+      </Empty>
+    );
   return (
     <main className="page-shell">
-      <PageHeader
+      <Header
         eyebrow="Даваа · 100 хүртэл оноо"
         title="Энэ хэн бэ?"
-        intro="Гурван сонирхолтой баримтын эзнийг таньж, хамт олноо хэр сайн мэддэгээ сориорой."
+        intro="Гурван баримтын эзнийг нийт хамтрагчдаасаа сонгоорой."
       />
       <div className="game-layout">
         <section className="mystery-card">
           <div className="card-top">
-            <span>Асуулт 4 / 10</span>
-            <span>Зөв хариулт бүр 10 оноо</span>
+            <span>Асуулт {current.position + 1} / 10</span>
+            <span>Зөв бүрд 10 оноо</span>
           </div>
           <div className="detective">
             <div className="silhouette">
               <span>?</span>
             </div>
-            <div>
-              <span className="eyebrow">Нууц хамтрагч</span>
-              <h2>Би хэн бэ?</h2>
-            </div>
+            <h2>Би хэн бэ?</h2>
           </div>
           <ol className="facts">
-            <li>
-              <b>01</b>
-              <span>Ажлынхаа өмнө өглөө бүр 5 км гүйдэг.</span>
-            </li>
-            <li>
-              <b>02</b>
-              <span>Хүүхэд байхдаа төгөлдөр хуурын уралдаанд түрүүлж байсан.</span>
-            </li>
-            <li>
-              <b>03</b>
-              <span>Кофегоо сүүгүй, нэг халбага зөгийн балтай уудаг.</span>
-            </li>
+            {current.facts.map((f, i) => (
+              <li key={i}>
+                <b>0{i + 1}</b>
+                <span>{f}</span>
+              </li>
+            ))}
           </ol>
-          <div className="mystery-foot">Демо мэдээлэл · Өөрийгөө сонгох боломжгүй</div>
         </section>
         <section className="answer-panel panel">
           <div className="progress-label">
-            <strong>Таны явц</strong>
-            <span>3 / 10 хариулсан</span>
+            <strong>{answered} / 10 хариулсан</strong>
+            <span>{state.scores.mystery} оноо</span>
           </div>
-          <div className="progress">
-            <i style={{ width: "30%" }} />
-          </div>
-          <label className="field-label">Хариултаа сонгох</label>
-          <div className="search">
-            <Icon name="search" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Ажилтан хайх"
-              disabled={result !== "none"}
-            />
-          </div>
+          <input
+            placeholder="Ажилтан хайх"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
           <div className="employee-list">
-            {options.slice(0, 6).map(([name, department]) => (
-              <button
-                key={name}
-                className={selected === name ? "selected" : ""}
-                onClick={() => result === "none" && setSelected(name)}
-              >
-                <span className="avatar">{name.charAt(0)}</span>
-                <span>
-                  <strong>{name}</strong>
-                  <small>{department}</small>
-                </span>
-                {selected === name && <Icon name="check" />}
-              </button>
-            ))}
+            {state.employees
+              .filter(
+                (p) => p.id !== state.me.id && p.name.toLowerCase().includes(query.toLowerCase()),
+              )
+              .map((p) => (
+                <button
+                  key={p.id}
+                  className={chosen === p.id ? "selected" : ""}
+                  onClick={() => setChosen(p.id)}
+                  disabled={busy || result !== null}
+                >
+                  <span className="avatar">{p.name[0]}</span>
+                  <span>
+                    <strong>{p.name}</strong>
+                    <small>{p.department}</small>
+                  </span>
+                </button>
+              ))}
           </div>
-          {result === "correct" && (
-            <div className="feedback success">
-              <b>Яг зөв! +10 оноо</b>
-              <span>Нууц хамтрагч бол Анударь Бат байлаа.</span>
-            </div>
-          )}
-          {result === "wrong" && (
-            <div className="feedback error">
-              <b>Энэ удаа таарсангүй</b>
-              <span>Зөв хариулт: Анударь Бат. Илгээсэн хариултыг өөрчлөх боломжгүй.</span>
-            </div>
-          )}
-          {result === "done" && (
-            <div className="feedback success">
-              <b>Бүх асуултаа дуусгалаа!</b>
-              <span>Таны үр дүн: 80 / 100 оноо.</span>
-            </div>
-          )}
-          <button
-            className="primary wide"
-            disabled={!selected || result !== "none"}
-            onClick={submit}
-          >
-            {result === "none" ? "Хариултаа илгээх" : "Хариулт илгээгдсэн"} <Icon name="arrow" />
-          </button>
-          {result !== "none" && (
-            <button className="text-button" onClick={() => setResult("done")}>
-              Эцсийн үр дүнг харах
+          <ErrorNote message={error} />
+          {result !== null ? (
+            <>
+              <p className={`feedback ${result ? "success" : "error"}`}>
+                {result ? "Зөв хариуллаа! +10 оноо" : "Энэ удаа таарсангүй."}
+              </p>
+              <button
+                className="primary"
+                onClick={() =>
+                  void run(async () => {
+                    setActiveId(
+                      state.mystery.find((q) => q.chosen === null && q.id !== activeId)?.id,
+                    );
+                    await refresh();
+                    setChosen("");
+                    setQuery("");
+                    setResult(null);
+                  })
+                }
+              >
+                Дараагийн асуулт →
+              </button>
+            </>
+          ) : (
+            <button
+              className="primary wide"
+              disabled={!chosen || busy || !state.access[0].open}
+              onClick={() =>
+                void run(async () => {
+                  const r = await api<{ correct: boolean }>("/mystery/answer", "POST", {
+                    id: current.id,
+                    chosen,
+                  });
+                  setResult(r.correct);
+                })
+              }
+            >
+              Хариултаа илгээх
             </button>
           )}
         </section>
@@ -590,42 +368,29 @@ function Mystery({ onScore }: { onScore: () => void }) {
     </main>
   );
 }
-
-function GiftHunt({
-  state,
-  setState,
-  onPhoto,
-}: {
-  state: string;
-  setState: (s: string) => void;
-  onPhoto: (url: string) => void;
-}) {
-  const [spinning, setSpinning] = useState(false);
-  const [secondClue, setSecondClue] = useState(false);
-  const [preview, setPreview] = useState("");
+function Hunt({ state, refresh }: { state: AppState; refresh: () => Promise<void> }) {
+  const [spinning, setSpinning] = useState(false),
+    [second, setSecond] = useState(false),
+    [file, setFile] = useState<File | null>(null),
+    [preview, setPreview] = useState("");
+  const { busy, error, run } = useAction();
   const input = useRef<HTMLInputElement>(null);
-  const spin = () => {
-    if (spinning || state !== "ready") return;
-    setSpinning(true);
-    window.setTimeout(() => {
-      setSpinning(false);
-      setState("clue");
-    }, 3300);
-  };
-  const upload = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      setPreview(url);
-      onPhoto(url);
+  useEffect(() => {
+    if (!file) {
+      setPreview("");
+      return;
     }
-  };
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+  const gift = state.gift;
   return (
     <main className="page-shell">
-      <PageHeader
-        eyebrow="Даваа · Нэг удаагийн эргэлт"
+      <Header
+        eyebrow="Даваа · 100 хүртэл оноо"
         title="Нуугдсан бэлгийн эрэл"
-        intro="Хүн бүрт давтагдашгүй нэг бэлэг, нэг сэжүүр. Хурд биш, олсон нь л чухал."
+        intro="Хүн бүрт давтагдашгүй нэг бэлэг, нэг сэжүүр."
       />
       <div className="hunt-layout">
         <section className="wheel-wrap panel">
@@ -634,98 +399,92 @@ function GiftHunt({
             <div className="wheel-lines" />
             <div className="wheel-center">
               <Icon name="spark" size={28} />
-              <span>Догдлол</span>
+              <span>Ид шидийн өртөө</span>
             </div>
-            {Array.from({ length: 12 }, (_, i) => (
-              <i key={i} style={{ "--i": i } as React.CSSProperties} />
-            ))}
           </div>
-          <button className="primary" onClick={spin} disabled={spinning || state !== "ready"}>
-            {spinning
-              ? "Таны бэлгийг сонгож байна…"
-              : state === "ready"
-                ? "Хүрдийг эргүүлэх"
-                : "Нэг удаагийн эрх ашиглагдсан"}
+          <button
+            className="primary"
+            disabled={busy || !!gift || !state.access[0].open}
+            onClick={() =>
+              void run(async () => {
+                setSpinning(true);
+                try {
+                  await api("/gifts/spin", "POST", {});
+                  await new Promise((r) => setTimeout(r, 3300));
+                  await refresh();
+                } finally {
+                  setSpinning(false);
+                }
+              })
+            }
+          >
+            {spinning ? "Сэжүүр сонгож байна…" : gift ? "Эрх ашиглагдсан" : "Хүрдийг эргүүлэх"}
           </button>
-          <small>Бэлэг бүр зөвхөн нэг хүнд оногдоно.</small>
+          <small>Хүн бүр нэг бэлэгтэй үлдэнэ.</small>
         </section>
         <section className="clue-card panel">
-          {state === "ready" ? (
+          <ErrorNote message={error} />
+          {!gift ? (
             <div className="empty-clue">
-              <span className="gift-box">
-                <i />
-              </span>
               <h2>Таны сэжүүр энд нээгдэнэ</h2>
-              <p>Хүрдээ эргүүлсний дараа оффис доторх өөрийн бэлгээ хайгаарай.</p>
+              <p>Хүрдээ эргүүлсний дараа бэлгээ хайгаарай.</p>
             </div>
           ) : (
             <>
-              <span className="eyebrow">Таны бэлгийн сэжүүр</span>
-              <h2>“Өглөө бүр биднийг сэрээдэг үнэрийн дэргэд…”</h2>
-              <div className="clue-id">Бэлэг № 18 · Зөвхөн танд</div>
-              {!secondClue ? (
-                <button className="secondary" onClick={() => setSecondClue(true)}>
-                  Хоёр дахь сэжүүр авах
-                </button>
-              ) : (
-                <div className="second-clue">
-                  <Icon name="spark" />
-                  <span>Цагаан аягануудын зүүн талд, доод тавиурыг ажиглаарай.</span>
-                </div>
-              )}
+              <span className="eyebrow">{gift.label}</span>
+              <h2>“{gift.clue}”</h2>
+              <button className="secondary" onClick={() => setSecond(true)} disabled={second}>
+                Хоёр дахь сэжүүр авах
+              </button>
+              {second && <p className="second-clue">{gift.second_clue}</p>}
               <p className="no-penalty">Нэмэлт сэжүүр авахад оноо хасагдахгүй.</p>
-              {preview && (
+              {(preview || gift.photo) && (
                 <div className="photo-preview">
-                  <img src={preview} alt="Бэлгийн зургийн урьдчилан харах" />
-                  <button onClick={() => input.current?.click()}>Зургийг солих</button>
+                  <img src={preview || gift.photo!} alt="Бэлгийн нотлох зураг" />
                 </div>
               )}
-              {!preview && (
-                <button className="upload-box" onClick={() => input.current?.click()}>
-                  <span>
+              {["clue", "retry"].includes(gift.status) && (
+                <>
+                  <button className="upload-box" onClick={() => input.current?.click()}>
                     <Icon name="camera" size={28} />
-                  </span>
-                  <strong>Бэлгээ олсон зургаа нэмэх</strong>
-                  <small>Камераар авах эсвэл сангаас сонгох</small>
-                </button>
+                    <strong>{file ? "Зургаа солих" : "Бэлгээ олсон зургаа нэмэх"}</strong>
+                    <small>JPG, PNG, WebP · 5 MB хүртэл</small>
+                  </button>
+                  <input
+                    ref={input}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    capture="environment"
+                    hidden
+                    onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  />
+                  <button
+                    className="primary wide"
+                    disabled={!file || busy || !state.access[0].open}
+                    onClick={() =>
+                      void run(async () => {
+                        if (file) {
+                          await api(`/gifts/${gift.id}/photo`, "POST", file);
+                          setFile(null);
+                          await refresh();
+                        }
+                      })
+                    }
+                  >
+                    Зургаа илгээх
+                  </button>
+                </>
               )}
-              <input
-                ref={input}
-                className="hidden-input"
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={upload}
-              />
-              {state === "pending" && (
-                <div className="feedback pending">
-                  <Icon name="clock" />
-                  <span>
-                    <b>Зургийг шалгаж байна</b>Зохион байгуулагч баталгаажуулсны дараа оноо
-                    нэмэгдэнэ.
-                  </span>
-                </div>
+              {gift.status === "pending" && (
+                <p className="feedback pending">
+                  Зургийг шалгаж байна. Баталсны дараа 100 оноо нэмэгдэнэ.
+                </p>
               )}
-              {state === "approved" && (
-                <div className="feedback success">
-                  <Icon name="check" />
-                  <span>
-                    <b>Бэлгээ оллоо! +100 оноо</b>Таны бэлэг баталгаажлаа.
-                  </span>
-                </div>
+              {gift.status === "approved" && (
+                <p className="feedback success">Бэлэг баталгаажлаа! +100 оноо</p>
               )}
-              {state === "retry" && (
-                <div className="feedback error">
-                  <span>
-                    <b>Зураг тодорхой харагдсангүй</b>Бэлэг болон байрлалыг хамтад нь харуулж дахин
-                    илгээнэ үү.
-                  </span>
-                </div>
-              )}
-              {preview && state !== "approved" && (
-                <button className="primary wide" onClick={() => setState("pending")}>
-                  Зургаа илгээх <Icon name="arrow" />
-                </button>
+              {gift.status === "retry" && (
+                <p className="feedback error">Дахин зураг хүссэн: {gift.note}</p>
               )}
             </>
           )}
@@ -734,868 +493,1199 @@ function GiftHunt({
     </main>
   );
 }
-
-function Letters({
-  day,
-  sealed,
-  setSealed,
-  onSeal,
-}: {
-  day: Day;
-  sealed: number;
-  setSealed: (n: number) => void;
-  onSeal: () => void;
-}) {
-  const [recipient, setRecipient] = useState(sealed === 0 ? "Саруул Мөнх" : "");
-  const [message, setMessage] = useState("");
-  const [opened, setOpened] = useState(false);
-  const seal = () => {
-    if (!recipient || message.length < 10 || sealed >= 2) return;
-    setSealed(sealed + 1);
-    onSeal();
-    setMessage("");
-    setRecipient("");
-  };
-  const friday = day === "Баасан";
+function Letters({ state, refresh }: { state: AppState; refresh: () => Promise<void> }) {
+  const [recipient, setRecipient] = useState(
+      state.sent.length ? state.draft?.recipient || "" : state.partner || "",
+    ),
+    [message, setMessage] = useState(state.draft?.message || ""),
+    [opened, setOpened] = useState<{ id: string; message: string } | null>(null),
+    [saved, setSaved] = useState("");
+  const { busy, error, run } = useAction();
+  const saving = useRef(false);
+  const dirty = useRef(false);
+  const draftVersion = useRef(0);
+  useEffect(() => {
+    if (!dirty.current || !state.access[1].open) return;
+    const v = ++draftVersion.current;
+    const timer = setTimeout(async () => {
+      if (!dirty.current || v !== draftVersion.current) return;
+      saving.current = true;
+      try {
+        await api("/letters/draft", "PUT", { recipient, message });
+        if (v === draftVersion.current) setSaved("Ноорог хадгалагдсан");
+      } catch {
+        setSaved("Ноорог хадгалагдсангүй. Дахин бичиж эсвэл илгээнэ үү.");
+      } finally {
+        saving.current = false;
+      }
+    }, 900);
+    return () => clearTimeout(timer);
+  }, [recipient, message, state.access[1].open]);
   return (
     <main className="page-shell letters-page">
-      <PageHeader
+      <Header
         eyebrow="Мягмар · 100 хүртэл оноо"
         title="Чамд хэлэх нэг сайхан үг"
-        intro="Хоёр хүнд чин сэтгэлийн үгээ бичээрэй. Битүүмжилсэн захиа бүр 50 оноо."
+        intro="Хоёр өөр хүнд бичсэн эхний хоёр захиа тус бүр 50 оноо. Нэмэлт захианд оноо нэмэхгүй."
       />
       <div className="letter-layout">
         <section className="stationery">
           <div className="paper-top">
-            <span className="eyebrow">
-              {sealed === 0 ? "Системээс оноосон эхний хүн" : "Өөрийн сонгох хоёр дахь хүн"}
-            </span>
             <span>
-              {sealed >= 2 ? "Нэмэлт захиа · оноогүй" : `Захиа ${Math.min(sealed + 1, 2)} / 2`}
+              {state.sent.length === 0
+                ? "Системээс оноосон эхний хүн"
+                : "Өөрийн сонгох хүлээн авагч"}
             </span>
+            <span>{state.scores.letters} / 100 оноо</span>
           </div>
-          <label className="field-label">Хүлээн авагч</label>
-          <select
-            value={recipient}
-            onChange={(e) => setRecipient(e.target.value)}
-            disabled={sealed === 0}
-          >
-            <option value="">Хүлээн авагч сонгох</option>
-            {employees.slice(1).map((e) => (
-              <option key={e[0]}>{e[0]}</option>
-            ))}
-          </select>
-          <label className="field-label">Таны сайхан үг</label>
-          <textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Талархаж явдаг нэг зүйлээ, хамтдаа бүтээсэн дурсамжаа эсвэл шинэ оны ерөөлөө бичээрэй…"
-          />
+          <label>
+            Хүлээн авагч
+            <select
+              value={recipient}
+              disabled={!state.sent.length || busy || !state.access[1].open}
+              onChange={(e) => {
+                dirty.current = true;
+                setRecipient(e.target.value);
+              }}
+            >
+              <option value="">Хүлээн авагч сонгох</option>
+              {state.employees
+                .filter(
+                  (p) => p.id !== state.me.id && !state.sent.some((l) => l.recipient === p.id),
+                )
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <label>
+            Таны сайхан үг
+            <textarea
+              value={message}
+              minLength={10}
+              maxLength={2000}
+              disabled={!state.access[1].open || busy}
+              onChange={(e) => {
+                dirty.current = true;
+                setMessage(e.target.value);
+              }}
+              placeholder="Талархлаа эсвэл шинэ оны ерөөлөө бичээрэй…"
+            />
+          </label>
           <div className="paper-actions">
-            <span>Ноорог автоматаар хадгалагдана</span>
-            <span>{message.length} тэмдэгт</span>
+            <span>{saved}</span>
+            <span>{message.length} / 2000</span>
           </div>
+          <ErrorNote message={error} />
           <button
             className="seal-button"
-            onClick={seal}
-            disabled={!recipient || message.length < 10}
+            disabled={busy || !recipient || message.trim().length < 10 || !state.access[1].open}
+            onClick={() =>
+              void run(async () => {
+                if (saving.current) throw new Error("Ноорог хадгалахыг түр хүлээнэ үү.");
+                dirty.current = false;
+                draftVersion.current++;
+                await api("/letters", "POST", { recipient, message });
+                setMessage("");
+                setRecipient("");
+                setSaved("");
+                await refresh();
+              })
+            }
           >
             <i>Д</i>
             <span>Захиагаа битүүмжлэх</span>
           </button>
         </section>
         <aside className="letters-side">
-          <div className="panel letter-progress">
-            <div className="progress-label">
-              <strong>Миний захианууд</strong>
-              <span>{sealed} / 2 захиа</span>
-            </div>
-            <div className="progress">
-              <i style={{ width: `${(Math.min(sealed, 2) / 2) * 100}%` }} />
-            </div>
-            {[0, 1].map((i) => (
-              <div className="letter-row" key={i}>
-                <span className={i < sealed ? "sealed-mail" : "empty-mail"}>
-                  {i < sealed ? "✉" : i + 1}
-                </span>
+          <section className="panel letter-progress">
+            <h3>Миний захианууд · {state.sent.length}</h3>
+            {state.sent.map((l) => (
+              <div className="letter-row" key={l.id}>
+                <span className="sealed-mail">✉</span>
                 <span>
-                  <strong>
-                    {i === 0 ? "Саруул Мөнх" : i < sealed ? "Анударь Бат" : "Хүлээн авагч сонгоно"}
-                  </strong>
-                  <small>{i < sealed ? "Битүүмжилсэн · 50 оноо" : "Ноорог"}</small>
+                  {l.name}
+                  <small>Битүүмжилсэн</small>
                 </span>
               </div>
             ))}
-            <div className="privacy">
-              <Icon name="lock" />
-              <span>
-                <strong>Захиа баасан гараг хүртэл нууц байна.</strong>Зөвхөн хүлээн авагч нь унших
-                боломжтой.
-              </span>
-            </div>
-          </div>
-          <div className={`received panel ${opened ? "opened" : ""}`}>
-            <span className="eyebrow">Танд ирсэн захиа</span>
-            <h3>{friday ? "Нууц тайлагдах цаг ирлээ" : "2 битүү захиа хүлээж байна"}</h3>
-            <div className="envelope" onClick={() => friday && setOpened(true)}>
-              <div className="envelope-back" />
-              <div className="letter-sheet">
-                <b>Болор оо,</b>
-                <p>
-                  Чиний тайван, урам өгдөг зан манай багийг үргэлж дулаахан болгодог. Шинэ онд улам
-                  ихийг хамтдаа бүтээе.
-                </p>
+            {!state.sent.length && <p>Бичсэн захиа хараахан алга.</p>}
+            <p className="privacy">
+              Захиа баасан гараг хүртэл нууц. Зөвхөн хүлээн авагч нь уншина.
+            </p>
+          </section>
+          <section className="panel letter-progress">
+            <h3>Танд ирсэн захиа · {state.inbox.length}</h3>
+            {!state.inbox.length && <p>Ирсэн захиа хараахан алга.</p>}
+            {state.inbox.map((l, i) => (
+              <button
+                className="secondary wide"
+                key={l.id}
+                disabled={!state.released || busy}
+                onClick={() =>
+                  void run(async () => {
+                    setOpened({
+                      id: l.id,
+                      ...(await api<{ message: string }>(`/letters/${l.id}`)),
+                    });
+                  })
+                }
+              >
+                ✉ Захиа {i + 1} · {state.released ? "Унших" : "Баасан гарагт нээгдэнэ"}
+              </button>
+            ))}
+            {opened && state.released && (
+              <article className="opened-letter">
+                <h3>{state.me.name},</h3>
+                <p>{opened.message}</p>
                 <em>— Нууц хамтрагчаас</em>
-              </div>
-              <div className="envelope-front" />
-              <i className="wax">Д</i>
-            </div>
-            <button className="secondary wide" disabled={!friday} onClick={() => setOpened(true)}>
-              {friday ? "Захиагаа нээх" : "Баасан гарагт нээгдэнэ"}
-            </button>
-          </div>
+                <button className="text-button" onClick={() => setOpened(null)}>
+                  Хаах
+                </button>
+              </article>
+            )}
+          </section>
         </aside>
       </div>
     </main>
   );
 }
-
-function Quiz({ host = false, onScore }: { host?: boolean; onScore: (correct: boolean) => void }) {
-  const [stage, setStage] = useState<"lobby" | "question" | "reveal" | "final">("lobby");
-  const [selected, setSelected] = useState<number | null>(null);
-  const [question, setQuestion] = useState(0);
-  const [hostView, setHostView] = useState(host);
-  const isHost = host || hostView;
-  const q = quizQuestions[question % quizQuestions.length];
-  const answer = (i: number) => {
-    if (selected !== null || isHost) return;
-    setSelected(i);
-    window.setTimeout(() => {
-      setStage("reveal");
-      onScore(i === q.correct);
-    }, 650);
-  };
-  const next = () => {
-    if (question >= 1) setStage("final");
-    else {
-      setQuestion(question + 1);
-      setSelected(null);
-      setStage("question");
-    }
-  };
-  if (stage === "lobby")
-    return (
-      <main className={`quiz-shell ${isHost ? "host" : ""}`}>
-        <div className="quiz-lights" />
-        <div className="lobby-card">
-          <span className="eyebrow">
-            {isHost ? "Том дэлгэцийн хөтлөгчийн горим" : "Шууд шинэ жилийн сорил"}
-          </span>
-          <h1>Догдлолын сорил</h1>
-          <p>Бүгд нэг асуултад нэгэн зэрэг хариулна. Хурд оноонд нөлөөлөхгүй.</p>
-          <div className="join-code">
-            <span>Нэгдэх код</span>
-            <strong>2026</strong>
-          </div>
-          <div className="players">
-            <i /> <b>28 / 30</b> тоглогч холбогдсон
-          </div>
-          <div className="avatar-stack">
-            {employees.slice(0, 7).map((e) => (
-              <span key={e[0]}>{e[0].charAt(0)}</span>
-            ))}
-            <span>+21</span>
-          </div>
-          <div className="lobby-actions">
-            <button className="primary" onClick={() => setStage("question")}>
-              {isHost ? "Сорилыг эхлүүлэх" : "Демо сорилд орох"} <Icon name="arrow" />
-            </button>
-            <button className="secondary" onClick={() => setHostView(!hostView)}>
-              {isHost ? "Тоглогчийн харагдац" : "Том дэлгэцийн харагдац"}
-            </button>
-          </div>
-          <small>Энэ нь үзүүлэнгийн загвар; бодит олон төхөөрөмжийн синк холбогдоогүй.</small>
-        </div>
-      </main>
+function Quiz({ isAdmin }: { isAdmin: boolean }) {
+  const [quiz, setQuiz] = useState<LiveQuiz | null>(null),
+    [seconds, setSeconds] = useState(0);
+  const [joined, setJoined] = useState(false);
+  const { busy, error, run } = useAction();
+  const refresh = useCallback(async () => {
+    setQuiz(await api<LiveQuiz>("/quiz"));
+  }, []);
+  useEffect(() => {
+    let live = true;
+    const update = async () => {
+      try {
+        const q = await api<LiveQuiz>("/quiz");
+        if (live) {
+          setQuiz(q);
+          setSeconds(Math.max(0, Math.ceil((q.deadline - q.serverNow) / 1000)));
+        }
+      } catch {
+        /* surface request errors on user actions */
+      }
+    };
+    void update();
+    const timer = setInterval(() => void update(), 1000);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, []);
+  useEffect(() => {
+    if (!joined) return;
+    const heartbeat = setInterval(
+      () => void api("/quiz/join", "POST", {}).catch(() => setJoined(false)),
+      8000,
     );
-  if (stage === "final")
-    return (
-      <main className="quiz-shell">
-        <div className="lobby-card result-card">
-          <span className="trophy">♛</span>
-          <span className="eyebrow">Хувийн үр дүн</span>
-          <h1>Гайхалтай тоглолоо!</h1>
-          <div className="big-score">
-            80 <small>/ 100 оноо</small>
-          </div>
-          <p>10 асуултаас 8-д нь зөв хариуллаа.</p>
-          <button className="primary" onClick={() => setStage("lobby")}>
-            Танхим руу буцах
-          </button>
-        </div>
-      </main>
-    );
+    return () => clearInterval(heartbeat);
+  }, [joined]);
+  if (!quiz) return <Empty>Сорилын төлөвийг ачаалж байна…</Empty>;
+  const q = quiz.question;
   return (
-    <main className={`quiz-stage ${isHost ? "host" : ""}`}>
+    <main className="quiz-shell">
+      <Header
+        eyebrow="Лхагва · 100 хүртэл оноо"
+        title="Ид шидийн өртөө · Шууд сорил"
+        intro="Бүгд нэг асуултад нэгэн зэрэг хариулна. Зөв бүрд 10 оноо."
+      />
+      <ErrorNote message={error} />
+      {!quiz.open && <p className="feedback pending">Сорил одоогоор хаалттай байна.</p>}
       <div className="quiz-top">
-        <span>Асуулт {question + 1} / 10</span>
-        <div className="timer">
-          <i />
-          <b>18</b> секунд
-        </div>
-        <span>28 тоглогч</span>
+        <span>{quiz.players} хүн холбогдсон</span>
+        <span>{quiz.answered} хариулт</span>
+        <span>
+          {quiz.stage === "question"
+            ? `${seconds} секунд`
+            : quiz.stage === "lobby"
+              ? "Эхлэхийг хүлээж байна"
+              : quiz.stage === "final"
+                ? "Дууссан"
+                : "Хариулт нээгдсэн"}
+        </span>
       </div>
-      <section className="question-card">
-        <span className="eyebrow">{question % 2 ? "Компанийн дурсамж" : "Шинэ жилийн мэдлэг"}</span>
-        <h1>{q.question}</h1>
-      </section>
-      <div className="answers">
-        {q.answers.map((a, i) => (
-          <button
-            key={a}
-            className={`${selected === i ? "chosen" : ""} ${stage === "reveal" && i === q.correct ? "correct" : ""} ${stage === "reveal" && selected === i && i !== q.correct ? "wrong" : ""}`}
-            onClick={() => answer(i)}
-            disabled={stage === "reveal" || isHost}
-          >
-            <b>{["А", "Б", "В", "Г"][i]}</b>
-            <span>{a}</span>
-            {selected === i && <Icon name="lock" />}
-          </button>
-        ))}
-      </div>
-      {stage === "reveal" && (
-        <div className="explanation">
-          <span className="answer-check">
-            <Icon name="check" />
-          </span>
-          <div>
-            <strong>{selected === q.correct ? "Зөв хариуллаа! +10 оноо" : "Зөв хариулт"}</strong>
-            <p>{q.explanation}</p>
+      {!isAdmin && !joined && (
+        <button
+          className="primary"
+          disabled={busy}
+          onClick={() =>
+            void run(async () => {
+              await api("/quiz/join", "POST", {});
+              setJoined(true);
+              await refresh();
+            })
+          }
+        >
+          Сорилд нэгдэх
+        </button>
+      )}
+      {q && quiz.stage !== "final" && (
+        <>
+          <section className="question-card">
+            <span className="eyebrow">
+              Асуулт {quiz.position + 1} / {quiz.total}
+            </span>
+            <h1>{q.question}</h1>
+          </section>
+          <div className="answers">
+            {q.answers.map((a, i) => (
+              <button
+                key={i}
+                disabled={
+                  busy ||
+                  isAdmin ||
+                  !joined ||
+                  !quiz.open ||
+                  quiz.stage !== "question" ||
+                  quiz.answer !== null ||
+                  seconds <= 0
+                }
+                className={`${quiz.answer === i ? "chosen" : ""} ${quiz.stage === "reveal" && q.correct === i ? "correct" : ""}`}
+                onClick={() =>
+                  void run(async () => {
+                    await api("/quiz/answer", "POST", { id: q.id, choice: i });
+                    await refresh();
+                  })
+                }
+              >
+                <b>{["А", "Б", "В", "Г"][i]}</b>
+                <span>{a}</span>
+              </button>
+            ))}
           </div>
-          <button className="primary" onClick={next}>
-            Дараагийн асуулт <Icon name="arrow" />
-          </button>
+          {quiz.stage === "reveal" && (
+            <section className="explanation">
+              <strong>{q.answers[q.correct!]}</strong>
+              <p>{q.explanation}</p>
+            </section>
+          )}
+        </>
+      )}
+      {quiz.stage === "final" && (
+        <Empty>
+          <h2>Сорил дууслаа!</h2>
+          <p>Таны оноо: {quiz.score} / 100</p>
+        </Empty>
+      )}
+      {isAdmin && (
+        <div className="quiz-controls">
+          {[
+            ...(quiz.stage === "lobby" ? [["start", "Эхлүүлэх"]] : []),
+            ...(quiz.stage === "question" ? [["reveal", "Хариулт нээх"]] : []),
+            ...(quiz.stage === "reveal"
+              ? [["next", quiz.position + 1 === quiz.total ? "Дуусгах" : "Дараагийн асуулт"]]
+              : []),
+            ...(["question", "reveal"].includes(quiz.stage)
+              ? [["finish", "Сорилыг эрт дуусгах"]]
+              : []),
+          ].map(([action, label]) => (
+            <button
+              className="primary"
+              key={action}
+              disabled={busy}
+              onClick={() =>
+                void run(async () => {
+                  await api("/admin/quiz/control", "POST", { action });
+                  await refresh();
+                })
+              }
+            >
+              {label}
+            </button>
+          ))}
         </div>
       )}
     </main>
   );
 }
-
-function Leaderboard({ friday, score }: { friday: boolean; score: number }) {
-  const rows = [
-    ["Тэмүүлэн Ган", 100, 100, 100, 100, 400],
-    ["Анударь Бат", 100, 100, 90, 100, 390],
-    ["Мишээл Энх", 90, 100, 100, 90, 380],
-    ["Болор Эрдэнэ", 80, 0, 0, 0, score],
-    ["Идэр Баяр", 70, 100, 100, 80, 350],
-    ["Саруул Мөнх", 80, 100, 90, 70, 340],
-  ];
-  if (!friday)
+function Leaderboard({ state }: { state: AppState }) {
+  const [rows, setRows] = useState<
+      (Scores & { id: string; name: string; department: string; total: number })[]
+    >([]),
+    [error, setError] = useState("");
+  useEffect(() => {
+    if (!state.released) return;
+    api<{ rows: typeof rows }>("/leaderboard")
+      .then((r) => setRows(r.rows))
+      .catch((e) => setError(e.message));
+  }, [state.released]);
+  if (!state.released)
     return (
-      <main className="page-shell">
-        <PageHeader
-          eyebrow="Баасан гарагт нээгдэнэ"
-          title="Эцсийн байр"
-          intro="Долоо хоногийн дөрвөн үйл ажиллагааны нийлбэр дүн энд нээгдэнэ."
-        />
-        <div className="locked-board panel">
-          <span>
-            <Icon name="lock" size={30} />
-          </span>
-          <h2>Эцсийн байр баасан гарагт нээгдэнэ.</h2>
-          <p>Одоогоор та зөвхөн өөрийн оноогоо харах боломжтой.</p>
-          <div className="my-score">
-            <small>Болор Эрдэнэ · Миний оноо</small>
-            <strong>
-              {score} <em>/ 400</em>
-            </strong>
-          </div>
-        </div>
-      </main>
+      <Empty>
+        <h2>Эцсийн байр баасан гарагт нээгдэнэ.</h2>
+        <p>Таны одоогийн оноо: {total(state.scores)} / 400</p>
+      </Empty>
     );
   return (
-    <main className="page-shell leaderboard">
-      <PageHeader
-        eyebrow="Баасан · Ялагчдын тайлал"
-        title="Догдлолын эзэд"
-        intro="Дөрвөн үйл ажиллагаа, нийт 400 боломжит оноо. Хамтдаа бүтээсэн дурсамж бүр хамгийн том шагнал."
+    <main className="page-shell">
+      <Header
+        eyebrow="Баасан · Нууц тайлагдлаа"
+        title="Хамтдаа бүтээсэн догдлол"
+        intro="Нийт 400 онооноос · Ижил оноотой ажилтнууд ижил байр эзэлнэ."
       />
-      <div className="podium">
-        <div className="podium-person second">
-          <span className="avatar big">А</span>
-          <b>Анударь Бат</b>
-          <small>390 оноо</small>
-          <i>2</i>
-        </div>
-        <div className="podium-person first">
-          <span className="crown">♛</span>
-          <span className="avatar big">Т</span>
-          <b>Тэмүүлэн Ган</b>
-          <small>400 оноо</small>
-          <i>1</i>
-        </div>
-        <div className="podium-person third">
-          <span className="avatar big">М</span>
-          <b>Мишээл Энх</b>
-          <small>380 оноо</small>
-          <i>3</i>
-        </div>
-      </div>
-      <section className="ranking panel">
-        <div className="ranking-head">
-          <div>
-            <span className="eyebrow">Эцсийн хүснэгт</span>
-            <h2>30 хамтрагчийн амжилт</h2>
-          </div>
-          <div className="max-score">
-            Дээд оноо <strong>400</strong>
-          </div>
-        </div>
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Байр</th>
-                <th>Хамтрагч</th>
-                <th>Энэ хэн бэ?</th>
-                <th>Бэлгийн эрэл</th>
-                <th>Нууц захиа</th>
-                <th>Шинэ жилийн сорил</th>
-                <th>Нийт</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, i) => (
-                <tr key={String(r[0])} className={r[0] === "Болор Эрдэнэ" ? "me" : ""}>
-                  <td>{i + 1}</td>
-                  <td>
-                    <span className="avatar small">{String(r[0]).charAt(0)}</span>
-                    <strong>{r[0]}</strong>
-                    {r[0] === "Болор Эрдэнэ" && <small>Та</small>}
-                  </td>
-                  <td>{r[1]}</td>
-                  <td>{r[2]}</td>
-                  <td>{r[3]}</td>
-                  <td>{r[4]}</td>
-                  <td>
-                    <strong>{r[5]}</strong>
-                  </td>
-                </tr>
+      <ErrorNote message={error} />
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              {["Байр", "Ажилтан", "Энэ хэн бэ?", "Бэлэг", "Захиа", "Сорил", "Нийт"].map((s) => (
+                <th key={s}>{s}</th>
               ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="score-formula">
-          100 + 100 + 100 + 100 = <strong>400</strong>
-        </div>
-      </section>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={r.id} className={r.id === state.me.id ? "mine" : ""}>
+                <td>{rows.findIndex((x) => x.total === r.total) + 1}</td>
+                <td>{r.name}</td>
+                <td>{r.mystery}</td>
+                <td>{r.gift}</td>
+                <td>{r.letters}</td>
+                <td>{r.quiz}</td>
+                <td>
+                  <b>{r.total} / 400</b>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {!rows.length && !error && <Empty>Оролцогч бүртгэгдээгүй байна.</Empty>}
     </main>
   );
 }
-
 function Admin({
-  giftState,
-  setGiftState,
-  triggerCelebrate,
-  communityCount,
-  completeCommunity,
+  refreshApp,
+  openQuiz,
 }: {
-  giftState: string;
-  setGiftState: (s: string) => void;
-  triggerCelebrate: () => void;
-  communityCount: number;
-  completeCommunity: () => void;
+  refreshApp: () => Promise<void>;
+  openQuiz: () => void;
 }) {
-  const [tab, setTab] = useState("Тойм");
-  const [questions, setQuestions] = useState(quizQuestions);
-  const [adding, setAdding] = useState(false);
-  const [newQuestion, setNewQuestion] = useState("");
-  const save = (e: FormEvent) => {
+  const [data, setData] = useState<AdminData | null>(null),
+    [tab, setTab] = useState("Тойм"),
+    [editing, setEditing] = useState<{
+      type: "employee" | "facts" | "gift" | "question" | "password";
+      id?: string;
+    } | null>(null),
+    [notice, setNotice] = useState("");
+  const { busy, error, run } = useAction();
+  const load = useCallback(async () => {
+    setData(await api<AdminData>("/admin/data"));
+  }, []);
+  useEffect(() => {
+    void run(load);
+  }, [load]);
+  const reload = async () => {
+    await load();
+    await refreshApp();
+  };
+  if (!data)
+    return (
+      <Empty>
+        <ErrorNote message={error} />
+        <p>Удирдлагыг ачаалж байна…</p>
+      </Empty>
+    );
+  const people = data.employees.filter((p) => p.role === "employee");
+  const chosen = editing?.id;
+  const employee = people.find((p) => p.id === chosen);
+  const gift = data.gifts.find((p) => p.id === chosen);
+  const question = data.questions.find((p) => p.id === chosen);
+  const pending = data.gifts.filter((g) => g.status === "pending");
+  function formSave(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!newQuestion) return;
-    setQuestions([
-      ...questions,
-      {
-        question: newQuestion,
-        answers: ["Сонголт 1", "Сонголт 2", "Сонголт 3", "Сонголт 4"],
-        correct: 0,
-        explanation: "Тайлбар оруулна.",
-      },
-    ]);
-    setNewQuestion("");
-    setAdding(false);
-  };
-  const approve = () => {
-    setGiftState("approved");
-    triggerCelebrate();
-  };
+    const f = Object.fromEntries(new FormData(e.currentTarget));
+    void run(async () => {
+      if (!editing) return;
+      if (editing.type === "employee") await api("/admin/employees", "POST", f);
+      if (editing.type === "facts")
+        await api("/admin/employees/" + chosen, "PUT", {
+          ...f,
+          facts: [f.fact0, f.fact1, f.fact2],
+        });
+      if (editing.type === "password") {
+        await api("/admin/employees/" + chosen + "/password", "POST", f);
+        setNotice("Нууц үг шинэчлэгдлээ. Ажилтанд хувиар дамжуулна уу.");
+      }
+      if (editing.type === "gift")
+        await api("/admin/gifts" + (chosen ? "/" + chosen : ""), chosen ? "PUT" : "POST", f);
+      if (editing.type === "question")
+        await api("/admin/questions" + (chosen ? "/" + chosen : ""), chosen ? "PUT" : "POST", {
+          ...f,
+          answers: [f.answer0, f.answer1, f.answer2, f.answer3],
+          seconds: Number(f.seconds),
+          correct: Number(f.correct),
+        });
+      setEditing(null);
+      await reload();
+    });
+  }
   return (
     <main className="admin-shell">
-      <PageHeader
-        eyebrow="Зохион байгуулагчийн хэсэг · Демо эрх"
+      <Header
+        eyebrow="Зохион байгуулагч"
         title="Баярын удирдлага"
-        intro="Оролцогч, контент, баталгаажуулалт болон нээлтийн цагийг нэг дороос удирдана."
+        intro="Бодит ажилтнууд, контент, оноо болон баталгаажуулалтыг удирдана."
       />
       <div className="admin-tabs">
-        {["Тойм", "Ажилтнууд", "Баримтууд", "Сорил", "Бэлгүүд", "Хуваарь"].map((t) => (
-          <button className={tab === t ? "active" : ""} onClick={() => setTab(t)} key={t}>
+        {["Тойм", "Ажилтнууд", "Сорил", "Бэлгүүд", "Хуваарь"].map((t) => (
+          <button
+            key={t}
+            className={t === tab ? "active" : ""}
+            onClick={() => {
+              setTab(t);
+              setEditing(null);
+            }}
+          >
             {t}
           </button>
         ))}
       </div>
+      <ErrorNote message={error} />
+      {notice && (
+        <p className="feedback success" role="status">
+          {notice}
+        </p>
+      )}
+      {editing && (
+        <section className="panel admin-card">
+          <div className="card-title">
+            <h2>
+              {editing.type === "employee"
+                ? "Ажилтан нэмэх"
+                : editing.type === "facts"
+                  ? "Нэр, хэлтэс, 3 баримт"
+                  : editing.type === "password"
+                    ? "Нууц үг шинэчлэх"
+                    : editing.type === "gift"
+                      ? "Бэлэг ба сэжүүр"
+                      : "Сорилын асуулт"}
+            </h2>
+            <button className="secondary" onClick={() => setEditing(null)}>
+              Хаах
+            </button>
+          </div>
+          <form key={editing.type + chosen} className="question-form" onSubmit={formSave}>
+            {editing.type === "employee" && (
+              <>
+                <label>
+                  Нэр
+                  <input name="name" required minLength={2} maxLength={100} />
+                </label>
+                <label>
+                  Хэлтэс
+                  <input name="department" maxLength={100} />
+                </label>
+                <label>
+                  Нэвтрэх нэр
+                  <input name="username" required minLength={3} maxLength={80} />
+                </label>
+                <label>
+                  Эхний нууц үг
+                  <input
+                    name="password"
+                    type="password"
+                    minLength={10}
+                    maxLength={128}
+                    autoComplete="new-password"
+                    required
+                  />
+                </label>
+              </>
+            )}
+            {editing.type === "facts" && (
+              <>
+                <label>
+                  Нэр
+                  <input
+                    name="name"
+                    defaultValue={employee?.name}
+                    required
+                    minLength={2}
+                    maxLength={100}
+                  />
+                </label>
+                <label>
+                  Хэлтэс
+                  <input name="department" defaultValue={employee?.department} maxLength={100} />
+                </label>
+                {[0, 1, 2].map((i) => (
+                  <label key={i}>
+                    Баримт {i + 1}
+                    <textarea
+                      name={"fact" + i}
+                      defaultValue={employee?.facts[i] || ""}
+                      required
+                      minLength={5}
+                      maxLength={300}
+                    />
+                  </label>
+                ))}
+              </>
+            )}
+            {editing.type === "password" && (
+              <label>
+                Шинэ нууц үг
+                <input
+                  name="password"
+                  type="password"
+                  autoComplete="new-password"
+                  required
+                  minLength={10}
+                  maxLength={128}
+                />
+              </label>
+            )}
+            {editing.type === "gift" && (
+              <>
+                <label>
+                  Бэлгийн дугаар / нэр
+                  <input name="label" defaultValue={gift?.label} required maxLength={100} />
+                </label>
+                <label>
+                  Эхний сэжүүр
+                  <textarea
+                    name="clue"
+                    defaultValue={gift?.clue}
+                    required
+                    minLength={5}
+                    maxLength={500}
+                  />
+                </label>
+                <label>
+                  Хоёр дахь сэжүүр
+                  <textarea
+                    name="second_clue"
+                    defaultValue={gift?.second_clue}
+                    required
+                    minLength={5}
+                    maxLength={500}
+                  />
+                </label>
+              </>
+            )}
+            {editing.type === "question" && (
+              <>
+                <label>
+                  Асуулт
+                  <textarea
+                    name="question"
+                    defaultValue={question?.question}
+                    required
+                    minLength={5}
+                    maxLength={500}
+                  />
+                </label>
+                <label>
+                  Ангилал
+                  <select name="category" defaultValue={question?.category || "newyear"}>
+                    <option value="newyear">Шинэ жилийн мэдлэг</option>
+                    <option value="company">Компанийн дурсамж</option>
+                  </select>
+                </label>
+                <div className="option-grid">
+                  {[0, 1, 2, 3].map((i) => (
+                    <label key={i}>
+                      Сонголт {i + 1}
+                      <input
+                        name={"answer" + i}
+                        defaultValue={question?.answers[i]}
+                        required
+                        maxLength={200}
+                      />
+                    </label>
+                  ))}
+                </div>
+                <div className="option-grid">
+                  <label>
+                    Зөв хариулт
+                    <select name="correct" defaultValue={question?.correct ?? 0}>
+                      {[0, 1, 2, 3].map((i) => (
+                        <option key={i} value={i}>
+                          Сонголт {i + 1}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Хугацаа (секунд)
+                    <input
+                      name="seconds"
+                      type="number"
+                      min={10}
+                      max={120}
+                      defaultValue={question?.seconds || 20}
+                      required
+                    />
+                  </label>
+                </div>
+                <label>
+                  Тайлбар
+                  <textarea
+                    name="explanation"
+                    defaultValue={question?.explanation}
+                    maxLength={1000}
+                  />
+                </label>
+              </>
+            )}
+            <button className="primary" disabled={busy}>
+              Хадгалах
+            </button>
+          </form>
+        </section>
+      )}
       {tab === "Тойм" && (
         <>
           <div className="admin-stats">
-            <Stat label="Нийт ажилтан" value="30" />
-            <Stat label="Захиа бичсэн" value={`${communityCount} / 30`} />
-            <Stat label="Шалгах зураг" value={giftState === "pending" ? "1 шинэ" : "0"} />
-            <Stat label="Сорилын асуулт" value="10 / 10" />
+            <div className="stat">
+              <small>Нийт ажилтан</small>
+              <strong>{people.length}</strong>
+            </div>
+            <div className="stat">
+              <small>3 баримт бүрэн</small>
+              <strong>
+                {people.filter((p) => p.facts.length === 3).length} / {people.length}
+              </strong>
+            </div>
+            <div className="stat">
+              <small>Шалгах зураг</small>
+              <strong>{pending.length}</strong>
+            </div>
+            <div className="stat">
+              <small>Quiz асуулт</small>
+              <strong>{data.questions.length} / 10</strong>
+            </div>
           </div>
-          <div className="admin-grid">
-            <section className="panel admin-card">
-              <div className="card-title">
-                <div>
-                  <span className="eyebrow">Бэлгийн зураг</span>
-                  <h2>Баталгаажуулах хүсэлт</h2>
-                </div>
-                <span className="badge">
-                  {giftState === "pending" ? "1 шинэ" : "Шинэ хүсэлтгүй"}
-                </span>
-              </div>
-              {giftState === "pending" ? (
-                <div className="review-item">
-                  <div className="review-photo">
-                    <Icon name="camera" size={28} />
-                  </div>
-                  <div>
-                    <strong>Болор Эрдэнэ · Бэлэг № 18</strong>
-                    <small>Кофены хэсэг · саяхан илгээсэн</small>
-                    <p>Сэжүүр: “Өглөө бүр биднийг сэрээдэг үнэрийн дэргэд…”</p>
-                    <div>
-                      <button className="primary small-btn" onClick={approve}>
-                        Батлах · +100
-                      </button>
-                      <button className="secondary small-btn" onClick={() => setGiftState("retry")}>
-                        Дахин зураг хүсэх
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="admin-empty">
-                  <Icon name="check" />
-                  <p>Одоогоор шалгах зураг алга.</p>
-                </div>
-              )}
-            </section>
-            <section className="panel admin-card">
-              <div className="card-title">
-                <div>
-                  <span className="eyebrow">Нээлтийн удирдлага</span>
-                  <h2>Өнөөдрийн төлөв</h2>
-                </div>
-                <span className="live-dot">Нээлттэй</span>
-              </div>
-              <div className="control-list">
-                <div>
-                  <span>Энэ хэн бэ?</span>
-                  <b>24 / 30 дууссан</b>
-                  <button>Харах</button>
-                </div>
-                <div>
-                  <span>Бэлгийн эрэл</span>
-                  <b>19 / 30 олсон</b>
-                  <button>Харах</button>
-                </div>
-                <div>
-                  <span>Шууд сорил</span>
-                  <b>Бэлэн</b>
-                  <button>Эхлүүлэх</button>
-                </div>
-                <div>
-                  <span>Баасан гараг</span>
-                  <b>Түгжээтэй</b>
-                  <button onClick={triggerCelebrate}>Нээх</button>
-                </div>
-                <div>
-                  <span>Хамтын гацуур</span>
-                  <b>{communityCount} / 30 гэрэл</b>
-                  <button onClick={completeCommunity}>30 / 30 болгох</button>
-                </div>
-              </div>
-            </section>
-          </div>
+          <section className="panel admin-card">
+            <h2>Тоглоомоо бэлдэх</h2>
+            <p>
+              Ажилтан бүрийн 3 баримт, ажилтны тоогоор бэлэг, эхлэх огноог эхлээд оруулна.
+              Бэлтгэсний дараа хүн бүрт өөрөөс нь бусад 10 хүний асуулт болон эхний захианы хүлээн
+              авагч оноогдоно.
+            </p>
+            <p>Бэлтгэсний дараа оролцогч, баримтыг өөрчлөхгүй.</p>
+            <button
+              className="primary"
+              disabled={busy || data.settings.prepared}
+              onClick={() =>
+                void run(async () => {
+                  if (!confirm("Ажилтнууд болон баримтууд бэлэн үү? Оноолтыг буцаахгүй.")) return;
+                  await api("/admin/prepare", "POST", {});
+                  await reload();
+                })
+              }
+            >
+              {data.settings.prepared ? "Тоглоом бэлтгэгдсэн" : "Оноолтыг үүсгэж бэлдэх"}
+            </button>
+          </section>
+          <section className="panel admin-card">
+            <h2>Зураг баталгаажуулах</h2>
+            {!pending.length && <p>Шалгах зураг алга.</p>}
+            {pending.map((g) => (
+              <Review
+                key={g.id}
+                gift={g}
+                name={people.find((p) => p.id === g.assigned)?.name || ""}
+                refresh={reload}
+              />
+            ))}
+          </section>
         </>
       )}
       {tab === "Ажилтнууд" && (
         <section className="panel admin-card">
           <div className="card-title">
-            <div>
-              <span className="eyebrow">30 ажилтан</span>
-              <h2>Ажилтан ба хэлтэс</h2>
-            </div>
-            <button className="primary small-btn">Ажилтан нэмэх</button>
-          </div>
-          <div className="simple-list">
-            {employees.map((e, i) => (
-              <div key={e[0]}>
-                <span className="avatar">{e[0].charAt(0)}</span>
-                <span>
-                  <strong>{e[0]}</strong>
-                  <small>{e[1]}</small>
-                </span>
-                <button>Засах</button>
-                <em>{i + 1}</em>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-      {tab === "Баримтууд" && (
-        <section className="panel admin-card">
-          <div className="card-title">
-            <div>
-              <span className="eyebrow">Энэ хэн бэ?</span>
-              <h2>Ажилтан бүрийн 3 баримт</h2>
-            </div>
-            <span className="badge">30 / 30 бүрэн</span>
-          </div>
-          <div className="fact-admin">
-            <select>
-              <option>Анударь Бат · Маркетинг</option>
-            </select>
-            {[
-              "Өглөө бүр 5 км гүйдэг.",
-              "Төгөлдөр хуурын уралдаанд түрүүлж байсан.",
-              "Кофегоо зөгийн балтай уудаг.",
-            ].map((f, i) => (
-              <label key={f}>
-                <b>{i + 1}</b>
-                <input defaultValue={f} />
-              </label>
-            ))}
-            <button className="primary">Өөрчлөлт хадгалах</button>
-          </div>
-        </section>
-      )}
-      {tab === "Сорил" && (
-        <section className="panel admin-card">
-          <div className="card-title">
-            <div>
-              <span className="eyebrow">10 асуулт · тус бүр 10 оноо</span>
-              <h2>Сорилын асуултууд</h2>
-            </div>
-            <button className="primary small-btn" onClick={() => setAdding(true)}>
-              Асуулт нэмэх
+            <h2>Ажилтан · {people.length}</h2>
+            <button
+              className="primary"
+              disabled={data.settings.prepared}
+              onClick={() => setEditing({ type: "employee" })}
+            >
+              Ажилтан нэмэх
             </button>
           </div>
-          {adding && (
-            <form className="question-form" onSubmit={save}>
-              <label>
-                Асуулт
-                <input
-                  autoFocus
-                  value={newQuestion}
-                  onChange={(e) => setNewQuestion(e.target.value)}
-                  placeholder="Асуултаа энд бичнэ үү"
-                />
-              </label>
-              <div className="option-grid">
-                {[0, 1, 2, 3].map((i) => (
-                  <label key={i}>
-                    Сонголт {i + 1}
-                    <input placeholder={`Хариулт ${i + 1}`} />
-                  </label>
-                ))}
-              </div>
-              <div className="option-grid">
-                <label>
-                  Зөв хариулт
-                  <select>
-                    <option>Сонголт 1</option>
-                    <option>Сонголт 2</option>
-                  </select>
-                </label>
-                <label>
-                  Хугацаа
-                  <select>
-                    <option>20 секунд</option>
-                    <option>30 секунд</option>
-                  </select>
-                </label>
-              </div>
-              <label>
-                Тайлбар
-                <textarea placeholder="Зөв хариултын богино тайлбар" />
-              </label>
-              <div>
-                <button className="primary" type="submit">
-                  Асуулт хадгалах
-                </button>
-                <button className="secondary" type="button" onClick={() => setAdding(false)}>
-                  Болих
-                </button>
-              </div>
-            </form>
-          )}
-          <div className="question-list">
-            {questions.map((q, i) => (
-              <div key={i}>
-                <b>{i + 1}</b>
+          <div className="simple-list">
+            {people.map((p) => (
+              <div key={p.id}>
+                <span className="avatar">{p.name[0]}</span>
                 <span>
-                  <strong>{q.question}</strong>
+                  <strong>{p.name}</strong>
                   <small>
-                    {i % 2 ? "Компанийн дурсамж" : "Шинэ жилийн мэдлэг"} · 20 секунд · 10 оноо
+                    {p.username} · {p.department} · {p.facts.length}/3 баримт
                   </small>
                 </span>
-                <button>Урьдчилан харах</button>
-                <button>Засах</button>
-                <i>↕</i>
+                <button
+                  disabled={data.settings.prepared}
+                  onClick={() => setEditing({ type: "facts", id: p.id })}
+                >
+                  Нэр / Баримт
+                </button>
+                <button onClick={() => setEditing({ type: "password", id: p.id })}>Нууц үг</button>
               </div>
             ))}
-          </div>
-          <div className="quiz-controls">
-            <strong>Шууд сорилын удирдлага</strong>
-            <button>Эхлүүлэх</button>
-            <button>Дараагийн асуулт</button>
-            <button>Дуусгах</button>
           </div>
         </section>
       )}
       {tab === "Бэлгүүд" && (
         <section className="panel admin-card">
           <div className="card-title">
-            <div>
-              <span className="eyebrow">30 давтагдашгүй бэлэг</span>
-              <h2>Бэлэг ба сэжүүрүүд</h2>
-            </div>
-            <button className="primary small-btn">Бэлэг нэмэх</button>
+            <h2>Бэлэг · {data.gifts.length}</h2>
+            <button className="primary" onClick={() => setEditing({ type: "gift" })}>
+              Бэлэг нэмэх
+            </button>
           </div>
+          {!data.gifts.length && <p>Хүн бүрт нэг бэлэг, хоёр сэжүүр нэмнэ үү.</p>}
           <div className="gift-admin">
-            {[18, 7, 24, 11].map((n, i) => (
-              <div key={n}>
-                <span className="gift-box tiny">
-                  <i />
-                </span>
+            {data.gifts.map((g) => (
+              <div key={g.id}>
                 <span>
-                  <strong>Бэлэг № {n}</strong>
+                  <strong>{g.label}</strong>
+                  <small>{g.clue}</small>
+                  <small>{g.second_clue}</small>
                   <small>
-                    Сэжүүр 1:{" "}
-                    {i
-                      ? "Хамгийн ногоон булангийн ойролцоо…"
-                      : "Өглөө бүр биднийг сэрээдэг үнэрийн дэргэд…"}
+                    {g.assigned ? "Оноогдсон" : "Сул"} · {g.status}
                   </small>
-                  <small>Сэжүүр 2: Доод тавиурыг ажиглаарай.</small>
                 </span>
-                <button>Засах</button>
+                <button
+                  disabled={!!g.assigned}
+                  onClick={() => setEditing({ type: "gift", id: g.id })}
+                >
+                  Засах
+                </button>
               </div>
             ))}
           </div>
         </section>
       )}
-      {tab === "Хуваарь" && (
+      {tab === "Сорил" && (
         <section className="panel admin-card">
           <div className="card-title">
-            <div>
-              <span className="eyebrow">Өдөр бүрийн нээлт</span>
-              <h2>Хуваарь ба эцсийн нээлт</h2>
-            </div>
+            <h2>Сорил · {data.questions.length} / 10</h2>
+            <button
+              className="primary"
+              disabled={data.quiz.stage !== "lobby" || data.questions.length >= 10}
+              onClick={() => setEditing({ type: "question" })}
+            >
+              Асуулт нэмэх
+            </button>
           </div>
-          <div className="schedule-admin">
-            {days.map((d, i) => (
-              <div key={d}>
-                <b>{d}</b>
-                <input type="time" defaultValue={i === 4 ? "16:00" : "09:00"} />
+          <p>
+            Шинэ жилийн {data.questions.filter((q) => q.category === "newyear").length}/5 ·
+            Компанийн {data.questions.filter((q) => q.category === "company").length}/5
+          </p>
+          <div className="question-list">
+            {data.questions.map((q, i) => (
+              <div key={q.id}>
+                <b>{i + 1}</b>
                 <span>
-                  {i === 3
-                    ? "Үйл ажиллагаагүй"
-                    : i === 4
-                      ? "Захиа ба оноо нээх"
-                      : "Автоматаар нээх"}
+                  <strong>{q.question}</strong>
+                  <small>
+                    {q.seconds} секунд · 10 оноо · Зөв: {q.answers[q.correct!]}
+                  </small>
                 </span>
-                <button className={i < 1 ? "on" : ""}>
-                  <i />
+                <button
+                  disabled={data.quiz.stage !== "lobby"}
+                  onClick={() => setEditing({ type: "question", id: q.id })}
+                >
+                  Засах
+                </button>
+                <button
+                  disabled={busy || data.quiz.stage !== "lobby" || i === 0}
+                  onClick={() =>
+                    void run(async () => {
+                      const ids = data.questions.map((q) => q.id);
+                      [ids[i - 1], ids[i]] = [ids[i], ids[i - 1]];
+                      await api("/admin/questions/reorder", "PATCH", { ids });
+                      await load();
+                    })
+                  }
+                >
+                  ↑
+                </button>
+                <button
+                  disabled={busy || data.quiz.stage !== "lobby"}
+                  onClick={() =>
+                    void run(async () => {
+                      if (confirm("Асуултыг устгах уу?")) {
+                        await api("/admin/questions/" + q.id, "DELETE");
+                        await load();
+                      }
+                    })
+                  }
+                >
+                  Устгах
                 </button>
               </div>
             ))}
           </div>
-          <div className="privacy admin-privacy">
-            <Icon name="lock" />
-            <span>
-              <strong>Хувийн нууц хамгаалагдсан</strong>Зохион байгуулагч захианы агуулгыг харах
-              боломжгүй.
-            </span>
+          <button className="primary" onClick={openQuiz}>
+            Шууд сорил / Том дэлгэц →
+          </button>
+          <p>Сорилыг дуусгасны дараа дахин эхлүүлэхгүй.</p>
+        </section>
+      )}
+      {tab === "Хуваарь" && (
+        <section className="panel admin-card">
+          <h2>Нээлтийн хуваарь</h2>
+          <p>
+            Улаанбаатарын цаг (UTC+8). Даваа: хоёр тоглоом, мягмар: захиа, лхагва: сорил. Пүрэв
+            гарагт тоглохгүй.
+          </p>
+          <div className="day-controls">
+            {data.access.map((a) => (
+              <div className="day-control" key={a.day}>
+                <div>
+                  <strong>{days[a.day]}</strong>
+                  <small>
+                    {
+                      [
+                        "Энэ хэн бэ? · Бэлгийн эрэл",
+                        "Нууц захиа бичих",
+                        "Шууд сорил",
+                        "Амралтын цонх · Даалгаваргүй",
+                        "Захиа унших · Онооны самбар",
+                      ][a.day]
+                    }
+                  </small>
+                  <b>{a.open ? "НЭЭЛТТЭЙ" : "ХААЛТТАЙ"}</b>
+                </div>
+                <select
+                  aria-label={days[a.day] + " гарагийн нээлт"}
+                  disabled={busy}
+                  value={a.mode}
+                  onChange={(e) => {
+                    const mode = e.target.value;
+                    void run(async () => {
+                      if (
+                        a.day === 4 &&
+                        mode === "open" &&
+                        !confirm(
+                          "Хүлээн авагчид захиагаа уншиж, бүх ажилтан онооны самбарыг харах боломжтой болно. Одоо нээх үү?",
+                        )
+                      )
+                        return;
+                      await api("/admin/days", "PUT", { day: a.day, mode });
+                      await reload();
+                      setNotice(days[a.day] + " гарагийн нээлт шинэчлэгдлээ.");
+                    });
+                  }}
+                >
+                  <option value="auto">Хуваарийн дагуу</option>
+                  <option value="open">Гараар нээх</option>
+                  <option value="closed">Гараар хаах</option>
+                </select>
+              </div>
+            ))}
           </div>
+          <p>
+            Гараар тохируулсан төлөв огнооноос үл хамааран үйлчилнэ. Баасан гарагийг хаахад өмнө
+            уншсан захиаг буцаан нууцлахгүй. Пүрэвт даалгавар нэмэгдэхгүй.
+          </p>
+          <form
+            className="question-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const values = Object.fromEntries(new FormData(e.currentTarget));
+              void run(async () => {
+                await api("/admin/settings", "PUT", values);
+                await reload();
+                setNotice("Хуваарь хадгалагдлаа.");
+              });
+            }}
+          >
+            <label>
+              Эхлэх даваа гараг
+              <input
+                type="date"
+                name="start_date"
+                defaultValue={data.settings.start_date}
+                required
+              />
+            </label>
+            <label>
+              Өдөр тутам нээх цаг
+              <input
+                type="time"
+                name="opening_time"
+                defaultValue={data.settings.opening_time}
+                required
+              />
+            </label>
+            <label>
+              Баасан: захиа, оноо нээх цаг
+              <input
+                type="time"
+                name="friday_time"
+                defaultValue={data.settings.friday_time}
+                required
+              />
+            </label>
+            <button className="primary" disabled={busy}>
+              Хуваарь хадгалах
+            </button>
+          </form>
+          <p>Нууц захианы агуулга админд харагдахгүй.</p>
         </section>
       )}
     </main>
   );
 }
-
+function Review({
+  gift,
+  name,
+  refresh,
+}: {
+  gift: Gift;
+  name: string;
+  refresh: () => Promise<void>;
+}) {
+  const [note, setNote] = useState("");
+  const { busy, error, run } = useAction();
+  return (
+    <article className="review-item">
+      <img src={`/api/gifts/${gift.id}/photo`} alt={`${name} · ${gift.label}`} />
+      <div>
+        <h3>
+          {name} · {gift.label}
+        </h3>
+        <p>{gift.clue}</p>
+        <label>
+          Дахин зураг хүсэх шалтгаан
+          <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} />
+        </label>
+        <div className="button-row">
+          <button
+            className="primary"
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                await api(`/admin/gifts/${gift.id}/review`, "POST", { status: "approved" });
+                await refresh();
+              })
+            }
+          >
+            Батлах · +100
+          </button>
+          <button
+            className="secondary"
+            disabled={busy || note.trim().length < 5}
+            onClick={() =>
+              void run(async () => {
+                await api(`/admin/gifts/${gift.id}/review`, "POST", { status: "retry", note });
+                await refresh();
+              })
+            }
+          >
+            Дахин зураг хүсэх
+          </button>
+        </div>
+        <ErrorNote message={error} />
+      </div>
+    </article>
+  );
+}
+function Profile() {
+  const { busy, error, run } = useAction();
+  const [done, setDone] = useState(false);
+  return (
+    <main className="page-shell">
+      <Header
+        eyebrow="Миний бүртгэл"
+        title="Нууц үг солих"
+        intro="Анхны нууц үгээ зөвхөн өөрийн мэдэх нууц үгээр солино уу."
+      />
+      <form
+        className="panel login-panel"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const f = e.currentTarget;
+          const fields = Object.fromEntries(new FormData(f));
+          void run(async () => {
+            await api("/auth/password", "POST", fields);
+            setDone(true);
+            f.reset();
+          });
+        }}
+      >
+        <label>
+          Одоогийн нууц үг
+          <input name="current" type="password" autoComplete="current-password" required />
+        </label>
+        <label>
+          Шинэ нууц үг
+          <input
+            name="password"
+            type="password"
+            autoComplete="new-password"
+            required
+            minLength={10}
+            maxLength={128}
+          />
+        </label>
+        <ErrorNote message={error} />
+        {done && <p className="feedback success">Нууц үг солигдлоо.</p>}
+        <button className="primary" disabled={busy}>
+          Хадгалах
+        </button>
+      </form>
+    </main>
+  );
+}
 export default function App() {
-  const [page, setPage] = useState<Page>("home");
-  const [day, setDay] = useState<Day>("Даваа");
-  const [reduced, setReduced] = useState(false);
-  const [giftState, setGiftState] = useState("ready");
-  const [sealed, setSealed] = useState(0);
-  const [mysteryScore, setMysteryScore] = useState(80);
-  const [giftScore, setGiftScore] = useState(0);
-  const [letterScore, setLetterScore] = useState(0);
-  const [quizScore, setQuizScore] = useState(0);
-  const [celebrate, setCelebrate] = useState(false);
-  const [communityBase, setCommunityBase] = useState(18);
-  const [role, setRole] = useState<"employee" | "admin">("employee");
-  const score = mysteryScore + giftScore + letterScore + quizScore;
-  const letterCount = Math.min(30, communityBase + Math.min(sealed, 2));
-  const celebrateNow = () => {
-    setCelebrate(false);
-    window.setTimeout(() => setCelebrate(true), 20);
-    window.setTimeout(() => setCelebrate(false), 1800);
-  };
+  const [state, setState] = useState<AppState | null>(null),
+    [loading, setLoading] = useState(true),
+    [error, setError] = useState(""),
+    [page, setPage] = useState<Page>("home"),
+    [reduced, setReduced] = useState(
+      () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    ),
+    [celebrate, setCelebrate] = useState(false);
+  const previous = useRef<AppState | null>(null);
+  const refresh = useCallback(async () => {
+    try {
+      const value = await api<AppState>("/state");
+      setState(value);
+      setError("");
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) {
+        setState(null);
+        previous.current = null;
+      } else setError(e instanceof Error ? e.message : "Серверт холбогдсонгүй.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+  useEffect(() => {
+    if (!state) return;
+    const id = setInterval(() => void refresh(), 10000);
+    return () => clearInterval(id);
+  }, [!!state, refresh, page]);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const old = previous.current;
+    if (
+      state &&
+      old &&
+      old.me.id === state.me.id &&
+      (state.scores.gift > old.scores.gift ||
+        (!old.released && state.released) ||
+        (old.community < state.employees.length && state.community === state.employees.length))
+    ) {
+      setCelebrate(true);
+      timer = setTimeout(() => setCelebrate(false), 1800);
+    }
+    previous.current = state;
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [state]);
   const navigate = (p: Page) => {
     setPage(p);
     window.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" });
   };
-  const chooseDay = (nextDay: Day) => {
-    setDay(nextDay);
-    if (nextDay === "Баасан") celebrateNow();
-  };
-  const content = useMemo(() => {
-    if (role === "admin" || page === "admin")
-      return (
-        <Admin
-          giftState={giftState}
-          setGiftState={(s) => {
-            setGiftState(s);
-            if (s === "approved") setGiftScore(100);
-          }}
-          triggerCelebrate={celebrateNow}
-          communityCount={letterCount}
-          completeCommunity={() => {
-            setCommunityBase(30);
-            celebrateNow();
-          }}
-        />
-      );
-    if (page === "home")
-      return (
-        <Home
-          day={day}
-          setDay={chooseDay}
-          setPage={navigate}
-          score={score}
-          letterCount={letterCount}
-        />
-      );
-    if (page === "mystery")
-      return <Mystery onScore={() => setMysteryScore(Math.min(100, mysteryScore + 10))} />;
-    if (page === "hunt")
-      return <GiftHunt state={giftState} setState={setGiftState} onPhoto={() => undefined} />;
-    if (page === "letters")
-      return (
-        <Letters
-          day={day}
-          sealed={sealed}
-          setSealed={setSealed}
-          onSeal={() => setLetterScore(Math.min(100, letterScore + 50))}
-        />
-      );
-    if (page === "quiz")
-      return <Quiz onScore={(correct) => correct && setQuizScore(Math.min(100, quizScore + 10))} />;
-    return <Leaderboard friday={day === "Баасан"} score={score} />;
-  }, [
-    page,
-    day,
-    role,
-    reduced,
-    giftState,
-    sealed,
-    mysteryScore,
-    letterScore,
-    giftScore,
-    quizScore,
-    score,
-    letterCount,
-    communityBase,
-  ]);
+  const admin = state?.me.role === "admin";
+  let content: ReactNode;
+  if (loading) content = <Empty>Ачаалж байна…</Empty>;
+  else if (!state) content = <Login onLogin={refresh} />;
+  else if (page === "admin" && admin)
+    content = <Admin refreshApp={refresh} openQuiz={() => navigate("quiz")} />;
+  else if (page === "profile") content = <Profile />;
+  else if (page === "home") content = <Home state={state} navigate={navigate} />;
+  else if (page === "leaderboard") content = <Leaderboard state={state} />;
+  else if (page === "quiz") content = <Quiz isAdmin={!!admin} />;
+  else if (
+    !state.settings.prepared ||
+    (!state.access[({ mystery: 0, hunt: 0, letters: 1 } as Record<string, number>)[page]]?.open &&
+      page !== "letters")
+  )
+    content = <Empty>Энэ үйл ажиллагаа одоогоор нээлттэй биш байна.</Empty>;
+  else if (page === "mystery") content = <Mystery state={state} refresh={refresh} />;
+  else if (page === "hunt") content = <Hunt state={state} refresh={refresh} />;
+  else content = <Letters state={state} refresh={refresh} />;
   return (
     <div className={`app ${reduced ? "reduce-motion" : ""}`}>
       {!reduced && <Snowfall />}
-      <Celebration active={celebrate} />
-      <header className="topbar">
-        <Brand />
-        <nav>
-          {navItems.map((item) => (
+      <Celebration active={!reduced && celebrate} />
+      {state && (
+        <header className="topbar">
+          <Brand />
+          <nav>
+            {nav
+              .filter((n) => n.id !== "admin" || admin)
+              .map((n) => (
+                <button
+                  key={n.id}
+                  className={n.id === page ? "active" : ""}
+                  onClick={() => navigate(n.id)}
+                >
+                  {n.label}
+                </button>
+              ))}
+          </nav>
+          <div className="header-actions">
             <button
-              key={item.id}
-              className={page === item.id ? "active" : ""}
-              onClick={() => {
-                setRole(item.id === "admin" ? "admin" : "employee");
-                navigate(item.id);
-              }}
+              className="motion-toggle"
+              onClick={() => setReduced(!reduced)}
+              aria-pressed={reduced}
             >
-              <span>{item.icon}</span>
-              {item.label}
+              Хөдөлгөөн {reduced ? "асаах" : "багасгах"}
             </button>
-          ))}
-        </nav>
-        <div className="header-actions">
-          <button className="motion-toggle" onClick={() => setReduced(!reduced)}>
-            <i className={reduced ? "off" : ""} />
-            Хөдөлгөөн багасгах
-          </button>
-          <button className="profile">БЭ</button>
-        </div>
-      </header>
-      <div className="demo-bar">
-        <span>Зөвхөн демо</span>
-        <b>Өдөр:</b>
-        {days.map((d) => (
-          <button className={day === d ? "active" : ""} onClick={() => chooseDay(d)} key={d}>
-            {d}
-          </button>
-        ))}
-        <i />
-        <b>Дүр:</b>
-        <button
-          className={role === "employee" ? "active" : ""}
-          onClick={() => {
-            setRole("employee");
-            navigate("home");
-          }}
-        >
-          Ажилтан
-        </button>
-        <button
-          className={role === "admin" ? "active" : ""}
-          onClick={() => {
-            setRole("admin");
-            navigate("admin");
-          }}
-        >
-          Зохион байгуулагч
-        </button>
-      </div>
+            <button
+              className="profile"
+              aria-label="Миний бүртгэл"
+              onClick={() => navigate("profile")}
+            >
+              {state.me.name.slice(0, 2)}
+            </button>
+            <button
+              className="text-button"
+              onClick={() =>
+                void api("/auth/logout", "POST", {})
+                  .then(() => {
+                    setState(null);
+                    navigate("home");
+                  })
+                  .catch((e) => setError(e.message))
+              }
+            >
+              Гарах
+            </button>
+          </div>
+        </header>
+      )}
+      <ErrorNote message={error} />
       {content}
-      <nav className="mobile-nav">
-        {navItems.slice(0, 5).map((item) => (
-          <button
-            key={item.id}
-            className={page === item.id ? "active" : ""}
-            onClick={() => {
-              setRole("employee");
-              navigate(item.id);
-            }}
-          >
-            <span>{item.icon}</span>
-            <small>{item.label.split(" ")[0]}</small>
-          </button>
-        ))}
-      </nav>
+      {state && (
+        <nav className="mobile-nav">
+          {nav
+            .filter((n) => n.id !== "admin" || admin)
+            .map((n) => (
+              <button
+                key={n.id}
+                className={n.id === page ? "active" : ""}
+                onClick={() => navigate(n.id)}
+              >
+                <span>{n.icon}</span>
+                <small>{n.label}</small>
+              </button>
+            ))}
+        </nav>
+      )}
       <footer>
         <Brand />
-        <p>Демо өгөгдөл · 30 хүний шинэ жилийн баярын долоо хоног</p>
-        <span>Ид шидийг хамтдаа бүтээе.</span>
+        <p>Ид шидийг хамтдаа бүтээе.</p>
       </footer>
     </div>
   );
