@@ -760,12 +760,14 @@
   }
 }
 
-/* Сантагийн зөвхөн нүдний хүүхэн хулганы заагчийг дагана */
-.santa-pupils {
-  transition: transform 0.18s ease-out;
+/* Сантагийн толгой хулганы заагч руу бага зэрэг эргэнэ */
+.santa-head {
+  transform-box: fill-box;
+  transform-origin: 50% 85%;
+  transition: transform 0.25s ease-out;
 }
 @media (prefers-reduced-motion: reduce) {
-  .santa-pupils {
+  .santa-head {
     transition: none;
   }
 }
@@ -1069,5 +1071,35 @@
   }
   .santa-greeting strong {
     font-size: 22px;
+  }
+}
+
+/* ===== Чимэглэсэн гацуур: гялалзах гэрэл, одны туяа ===== */
+.tree-sparkle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: tree-twinkle 2.4s ease-in-out infinite both;
+}
+/* Бүрэн унтарч -> гэнэт гэрэлтэн асаж -> дахин унтарна */
+@keyframes tree-twinkle {
+  0%, 30% { opacity: 0; scale: 0.3; rotate: 0deg; }
+  42% { opacity: 1; scale: 1.35; rotate: 45deg; }
+  55% { opacity: 0.9; scale: 0.95; rotate: 60deg; }
+  68% { opacity: 1; scale: 1.15; rotate: 80deg; }
+  82%, 100% { opacity: 0; scale: 0.3; rotate: 90deg; }
+}
+.tree-star {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: tree-star 3.2s ease-in-out infinite;
+}
+@keyframes tree-star {
+  0%, 100% { scale: 1; filter: drop-shadow(0 0 4px rgba(255, 220, 120, 0.6)); }
+  50% { scale: 1.07; filter: drop-shadow(0 0 10px rgba(255, 220, 120, 0.95)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tree-sparkle,
+  .tree-star {
+    animation: none;
   }
 }

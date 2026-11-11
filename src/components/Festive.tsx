@@ -1,5 +1,6 @@
 import type React from "react";
 import { useEffect, useRef } from "react";
+import santaFace from "../assets/santa-face.png";
 
 // Цасны чөтгөрхөн: нүүр хуудсанд хааяа шагайж гараад цасан хүн рүү цасан бөмбөг шиднэ.
 export function SnowImp() {
@@ -562,10 +563,254 @@ export function Brand() {
   );
 }
 
+// ===== Сэвсгэр, чимэглэлтэй гацуур (процедурээр үүсгэнэ, нэг удаа тооцно) =====
+const TREE = (() => {
+  let seed = 20261231;
+  const rand = () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const CX = 115;
+  // [дээд y, доод y, дээд хагас өргөн, доод хагас өргөн]
+  const tiers = [
+    [44, 100, 3, 44],
+    [84, 152, 20, 64],
+    [134, 208, 32, 84],
+    [190, 264, 42, 100],
+    [246, 310, 52, 110],
+  ];
+  const widthAt = (t: number[], y: number) => t[2] + ((y - t[0]) / (t[1] - t[0])) * (t[3] - t[2]);
+  const needles = ["", "", "", ""]; // хар, дунд, цайвар, гэрэлтсэн
+  const bases: string[] = [];
+  for (const t of tiers) {
+    bases.push(
+      `M${CX - t[2]} ${t[0] + 4}L${CX} ${t[0] - 6}L${CX + t[2]} ${t[0] + 4}L${CX + t[3] - 6} ${t[1] - 4}Q${CX} ${t[1] + 6} ${CX - t[3] + 6} ${t[1] - 4}Z`,
+    );
+    for (let y = t[0]; y <= t[1]; y += 6.5) {
+      const w = widthAt(t, y);
+      const skirt = y > t[1] - 13;
+      for (let x = -w; x <= w + 0.1; x += 8.5) {
+        const px = CX + x + (rand() - 0.5) * 5;
+        const py = y + (rand() - 0.5) * 3;
+        const side = w ? x / w : 0;
+        const dir = 90 - side * 55;
+        const count = skirt ? 9 : 7;
+        for (let k = 0; k < count; k++) {
+          const a = ((dir + (rand() - 0.5) * 150) * Math.PI) / 180;
+          const len = (skirt ? 10 : 7) + rand() * 6;
+          const dx = (Math.cos(a) * len).toFixed(1);
+          const dy = (Math.sin(a) * len * 0.85 + (skirt ? 2.5 : 1)).toFixed(1);
+          const light = rand() - side * 0.18 - (skirt ? 0.12 : 0);
+          const shade = light < 0.3 ? 0 : light < 0.68 ? 1 : light < 0.93 ? 2 : 3;
+          needles[shade] += `M${px.toFixed(1)} ${py.toFixed(1)}l${dx} ${dy}`;
+        }
+      }
+    }
+  }
+  // Чимэглэлүүд: давхарга бүрт тэнцүү тараана.
+  const kinds = ["red", "gold", "bow", "candy", "blue", "ginger", "silver", "flake", "red", "bow"];
+  const items: { kind: string; x: number; y: number; s: number }[] = [];
+  let n = 0;
+  tiers.forEach((t, ti) => {
+    const per = [2, 3, 4, 5, 6][ti];
+    for (let i = 0; i < per; i++) {
+      const y = t[0] + (t[1] - t[0]) * (0.45 + rand() * 0.45);
+      const w = widthAt(t, y) * 0.78;
+      const x = CX - w + ((i + 0.5) / per) * 2 * w + (rand() - 0.5) * 8;
+      items.push({ kind: kinds[n++ % kinds.length], x, y, s: 0.9 + rand() * 0.35 });
+    }
+  });
+  const garlands = tiers.slice(1).map((t, i) => {
+    const y1 = t[0] + (t[1] - t[0]) * 0.35;
+    const y2 = t[0] + (t[1] - t[0]) * 0.62;
+    const w1 = widthAt(t, y1) * 0.92;
+    const w2 = widthAt(t, y2) * 0.92;
+    const flip = i % 2 === 0;
+    const [ax, ay, bx, by] = flip
+      ? [CX - w1, y1, CX + w2, y2]
+      : [CX + w1, y1, CX - w2, y2];
+    return `M${ax.toFixed(1)} ${ay.toFixed(1)}Q${CX} ${((ay + by) / 2 + 16).toFixed(1)} ${bx.toFixed(1)} ${by.toFixed(1)}`;
+  });
+  const sparkles = Array.from({ length: 26 }, () => {
+    const t = tiers[Math.floor(rand() * tiers.length)];
+    const y = t[0] + 8 + rand() * (t[1] - t[0] - 10);
+    const w = widthAt(t, y) * 0.9;
+    const dur = 1.4 + rand() * 2.2;
+    return { x: CX + (rand() * 2 - 1) * w, y, s: 0.6 + rand() * 0.8, d: -rand() * dur, dur };
+  });
+  return { needles, bases, items, garlands, sparkles };
+})();
+
+const STAR_PATH = (() => {
+  const pts = Array.from({ length: 10 }, (_, i) => {
+    const r = i % 2 ? 7 : 17;
+    const a = (Math.PI / 5) * i - Math.PI / 2;
+    return `${(115 + Math.cos(a) * r).toFixed(1)} ${(30 + Math.sin(a) * r).toFixed(1)}`;
+  });
+  return "M" + pts.join("L") + "Z";
+})();
+
+function TreeItem({ kind, x, y, s }: { kind: string; x: number; y: number; s: number }) {
+  const at = `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(2)})`;
+  if (kind === "candy")
+    return (
+      <g transform={at + " rotate(-12)"}>
+        <path d="M0 9V-2a3.5 3.5 0 0 1 7 0" fill="none" stroke="#fffdf8" strokeWidth="2.8" strokeLinecap="round" />
+        <path
+          d="M0 9V-2a3.5 3.5 0 0 1 7 0"
+          fill="none"
+          stroke="#c8342c"
+          strokeWidth="2.8"
+          strokeDasharray="2.2 2.2"
+        />
+      </g>
+    );
+  if (kind === "ginger")
+    return (
+      <g transform={at}>
+        <path
+          d="M-5 -1H5M0 -3V4M0 4L-3.5 9M0 4L3.5 9"
+          stroke="#b5702f"
+          strokeWidth="3.4"
+          strokeLinecap="round"
+        />
+        <circle cy="-5.5" r="3.4" fill="#b5702f" />
+        <path d="M-4.5 -1H-3M3 -1H4.5" stroke="#fffdf8" strokeWidth="0.9" strokeLinecap="round" />
+        <circle cx="0" cy="0.8" r="0.7" fill="#fffdf8" />
+        <circle cx="0" cy="2.8" r="0.7" fill="#c8342c" />
+      </g>
+    );
+  if (kind === "flake")
+    return (
+      <g transform={at} stroke="#f5fbff" strokeWidth="1.3" strokeLinecap="round">
+        <path d="M0 -7V7M-6 -3.5L6 3.5M-6 3.5L6 -3.5" />
+        <path d="M-2 -5.5L0 -4L2 -5.5M-2 5.5L0 4L2 5.5" fill="none" />
+      </g>
+    );
+  const color = kind === "bow" ? "red" : kind;
+  return (
+    <g transform={at}>
+      <line x1="0" y1="-11" x2="0" y2="-7" stroke="#c9a14f" strokeWidth="0.8" />
+      <rect x="-2.2" y="-8.6" width="4.4" height="2.8" rx="0.8" fill="#d8b25c" />
+      <circle r="6.6" fill={`url(#lt-${color})`} />
+      <ellipse cx="-2.2" cy="-2.4" rx="1.9" ry="1.2" fill="#fff" opacity="0.75" />
+      {kind === "bow" && (
+        <g transform="translate(0 -9)">
+          <path d="M0 0C-6 -5 -9 1 -3 2Z M0 0C6 -5 9 1 3 2Z" fill="#d63a33" />
+          <path d="M-1 1L-4 7M1 1L4 7" stroke="#d63a33" strokeWidth="1.8" strokeLinecap="round" />
+          <circle r="1.6" fill="#a8261f" />
+        </g>
+      )}
+    </g>
+  );
+}
+
+function LushTree() {
+  return (
+    <svg className="hero-tree" viewBox="0 0 230 350" role="img" aria-label="Чимэглэсэн гацуур мод">
+      <defs>
+        <radialGradient id="lt-red" cx="35%" cy="30%" r="75%">
+          <stop stopColor="#ff8a7a" />
+          <stop offset=".45" stopColor="#d63a33" />
+          <stop offset="1" stopColor="#7d1714" />
+        </radialGradient>
+        <radialGradient id="lt-gold" cx="35%" cy="30%" r="75%">
+          <stop stopColor="#fff3c4" />
+          <stop offset=".45" stopColor="#e2b44a" />
+          <stop offset="1" stopColor="#8a5f1c" />
+        </radialGradient>
+        <radialGradient id="lt-blue" cx="35%" cy="30%" r="75%">
+          <stop stopColor="#d6ecff" />
+          <stop offset=".45" stopColor="#4d8fc4" />
+          <stop offset="1" stopColor="#1d4466" />
+        </radialGradient>
+        <radialGradient id="lt-silver" cx="35%" cy="30%" r="75%">
+          <stop stopColor="#ffffff" />
+          <stop offset=".5" stopColor="#c9d3da" />
+          <stop offset="1" stopColor="#7d8a93" />
+        </radialGradient>
+        <linearGradient id="lt-star" x1="0" y1="0" x2="1" y2="1">
+          <stop stopColor="#fff6c8" />
+          <stop offset=".5" stopColor="#f2c23d" />
+          <stop offset="1" stopColor="#b07a12" />
+        </linearGradient>
+        <radialGradient id="lt-glow">
+          <stop stopColor="#fff3b0" stopOpacity=".9" />
+          <stop offset="1" stopColor="#fff3b0" stopOpacity="0" />
+        </radialGradient>
+        <linearGradient id="lt-trunk" x1="0" x2="1">
+          <stop stopColor="#5e3b1e" />
+          <stop offset=".5" stopColor="#8a5a2e" />
+          <stop offset="1" stopColor="#5e3b1e" />
+        </linearGradient>
+      </defs>
+      <ellipse cx="115" cy="336" rx="100" ry="13" fill="#6b5a3a" opacity=".18" />
+      <rect x="103" y="300" width="24" height="34" rx="2" fill="url(#lt-trunk)" />
+      {TREE.bases.map((d, i) => (
+        <path key={i} d={d} fill="#0e4528" />
+      ))}
+      <g fill="none" strokeLinecap="round">
+        <path d={TREE.needles[0]} stroke="#0d4a2a" strokeWidth="2.3" />
+        <path d={TREE.needles[1]} stroke="#1c7a3c" strokeWidth="1.9" />
+        <path d={TREE.needles[2]} stroke="#36a04c" strokeWidth="1.5" />
+        <path d={TREE.needles[3]} stroke="#86d27a" strokeWidth="1.1" />
+      </g>
+      <g fill="none" strokeLinecap="round">
+        {TREE.garlands.map((d, i) => (
+          <g key={i}>
+            <path d={d} stroke="#e8eef3" strokeWidth="1.4" strokeDasharray="2.5 1.8" opacity=".9" />
+            <path
+              d={d}
+              stroke={i % 2 ? "#d63a33" : "#f2c23d"}
+              strokeWidth="3.4"
+              strokeDasharray="0 5.5"
+              transform="translate(0 3)"
+            />
+          </g>
+        ))}
+      </g>
+      {TREE.items.map((it, i) => (
+        <TreeItem key={i} {...it} />
+      ))}
+      {TREE.sparkles.map((p, i) => (
+        <g
+          key={i}
+          transform={`translate(${p.x.toFixed(1)} ${p.y.toFixed(1)}) scale(${p.s.toFixed(2)})`}
+        >
+          <g
+            className="tree-sparkle"
+            style={{ animationDelay: `${p.d.toFixed(2)}s`, animationDuration: `${p.dur.toFixed(2)}s` }}
+          >
+            <circle r="9" fill="url(#lt-glow)" />
+            <path
+              d="M0 -7L1.2 -1.2L7 0L1.2 1.2L0 7L-1.2 1.2L-7 0L-1.2 -1.2Z"
+              fill={i % 3 ? "#fffbe0" : "#ffe27a"}
+            />
+          </g>
+        </g>
+      ))}
+      <g className="tree-star">
+        <circle cx="115" cy="30" r="30" fill="url(#lt-glow)" />
+        <path
+          d="M115 2V58M87 30H143M95 10L135 50M135 10L95 50"
+          stroke="#fff3b0"
+          strokeWidth="1"
+          opacity=".6"
+        />
+        <path d={STAR_PATH} fill="url(#lt-star)" stroke="#b07a12" strokeWidth="0.8" />
+        <path d="M115 16L118 27L111 25Z" fill="#fff" opacity=".55" />
+      </g>
+      <ellipse cx="115" cy="340" rx="94" ry="12" fill="#fffaf0" />
+    </svg>
+  );
+}
+
 export function SantaVillage() {
   const santaRef = useRef<SVGSVGElement>(null);
-  const eyesRef = useRef<SVGGElement>(null);
-  // Сантагийн зөвхөн нүдний хүүхэн хараа хулганы заагчийг дагана.
+  const headRef = useRef<SVGGElement>(null);
+  // Сантагийн толгой хулганы заагч руу бага зэрэг эргэж харна.
   useEffect(() => {
     let frame = 0;
     let point: { x: number; y: number } | null = null;
@@ -573,7 +818,7 @@ export function SantaVillage() {
       frame = 0;
       const svg = santaRef.current;
       const ctm = svg?.getScreenCTM();
-      if (!svg || !ctm || !eyesRef.current) return;
+      if (!svg || !ctm || !headRef.current) return;
       let dx = 0,
         dy = 0;
       if (point) {
@@ -586,7 +831,7 @@ export function SantaVillage() {
         dx = (vx / dist) * reach;
         dy = (vy / dist) * reach;
       }
-      eyesRef.current.style.transform = `translate(${dx * 3.6}px, ${dy * 3.6}px)`;
+      headRef.current.style.transform = `translate(${dx * 4}px, ${dy * 2.5}px) rotate(${dx * 5}deg)`;
     };
     const queue = () => {
       if (!frame) frame = requestAnimationFrame(apply);
@@ -614,45 +859,7 @@ export function SantaVillage() {
       <span className="ornament ornament-a" />
       <span className="ornament ornament-b" />
       <span className="ornament ornament-c" />
-      <svg className="hero-tree" viewBox="0 0 230 350" role="img" aria-label="Гэрэлт гацуур мод">
-        <defs>
-          <linearGradient id="treeG" x1="0" x2="1">
-            <stop stopColor="#123f31" />
-            <stop offset="1" stopColor="#2d654f" />
-          </linearGradient>
-          <linearGradient id="goldG" x1="0" x2="1">
-            <stop stopColor="#9d7130" />
-            <stop offset=".5" stopColor="#f6df9d" />
-            <stop offset="1" stopColor="#ad7b32" />
-          </linearGradient>
-        </defs>
-        <path d="m115 23 15 31-15-6-15 6z" fill="url(#goldG)" />
-        <path d="M115 44 55 145h34L37 224h44l-61 83h190l-61-83h44l-52-79h34z" fill="url(#treeG)" />
-        <path
-          d="M53 166c41 23 85 21 126-1M47 245c47 21 95 21 138 0"
-          fill="none"
-          stroke="#d5b46d"
-          strokeWidth="4"
-          strokeLinecap="round"
-        />
-        {[
-          ["78", "135"],
-          ["132", "107"],
-          ["111", "179"],
-          ["157", "190"],
-          ["69", "234"],
-          ["132", "257"],
-          ["173", "276"],
-          ["99", "292"],
-        ].map(([cx, cy], i) => (
-          <g key={i} className={`tree-light light-${i}`}>
-            <circle cx={cx} cy={cy} r="6" fill={i % 3 === 0 ? "#b6433c" : "#f8d778"} />
-            <circle cx={cx} cy={cy} r="13" fill="#f8d778" opacity=".14" />
-          </g>
-        ))}
-        <path d="M92 307h46v35H92z" fill="#81582f" />
-        <ellipse cx="115" cy="340" rx="94" ry="12" fill="#fffaf0" />
-      </svg>
+      <LushTree />
       <svg
         ref={santaRef}
         className="santa"
@@ -660,48 +867,123 @@ export function SantaVillage() {
         role="img"
         aria-label="Гараа даллаж буй өвлийн өвгөн"
       >
-        <ellipse cx="116" cy="292" rx="78" ry="12" fill="#d9d0bd" opacity=".55" />
-        <path d="M72 150c-25 20-35 75-29 131h143c5-65-10-117-44-137z" fill="#9f312f" />
-        <path d="M90 151v130h28V157" fill="#f5ecdc" opacity=".92" />
-        <path d="M44 221c-18-10-28 1-25 13 4 14 19 17 30 7" fill="#f2c5a5" />
+        <defs>
+          <linearGradient id="sv-coat" x1="0" y1="0" x2="1" y2="1">
+            <stop stopColor="#ef4a3c" />
+            <stop offset=".55" stopColor="#d1302a" />
+            <stop offset="1" stopColor="#9c1d1a" />
+          </linearGradient>
+          <linearGradient id="sv-boot" x1="0" y1="0" x2="0" y2="1">
+            <stop stopColor="#4a4a4f" />
+            <stop offset="1" stopColor="#1d1d20" />
+          </linearGradient>
+          <clipPath id="sv-face">
+            <ellipse cx="115" cy="106" rx="26" ry="34" />
+          </clipPath>
+        </defs>
+        <ellipse cx="116" cy="297" rx="80" ry="11" fill="#d9d0bd" opacity=".55" />
+        {/* Гутал, өмд */}
+        <path d="M106 266H72v14l-11 3a6 6 0 0 0 2 11h37a6 6 0 0 0 6-6z" fill="url(#sv-boot)" />
+        <path d="M124 266h34v14l11 3a6 6 0 0 1-2 11h-37a6 6 0 0 1-6-6z" fill="url(#sv-boot)" />
+        <path d="M66 288h30M134 288h30" stroke="#6a6a70" strokeWidth="1.5" strokeLinecap="round" />
+        <rect x="76" y="236" width="28" height="30" fill="#c42a25" />
+        <rect x="126" y="236" width="28" height="30" fill="#c42a25" />
+        <rect x="70" y="258" width="40" height="12" rx="6" fill="#fffaf0" />
+        <rect x="120" y="258" width="40" height="12" rx="6" fill="#fffaf0" />
+        {/* Доош унжсан гар */}
+        <path
+          d="M72 176C58 192 50 212 46 232"
+          fill="none"
+          stroke="url(#sv-coat)"
+          strokeWidth="26"
+          strokeLinecap="round"
+        />
+        <ellipse cx="45" cy="238" rx="15" ry="9" fill="#fffaf0" transform="rotate(-12 45 238)" />
+        <path d="M34 244c-4 8 0 18 9 19 9 1 15-5 13-13-1-6-6-9-11-8l-3-4z" fill="#f2c5a5" />
+        {/* Цув */}
+        <path
+          d="M68 164C52 190 48 228 56 258Q115 278 174 258C182 228 178 190 162 164Q115 148 68 164Z"
+          fill="url(#sv-coat)"
+        />
+        <path
+          d="M55 250Q115 270 175 250L177 264Q115 288 53 264Z"
+          fill="#fffaf0"
+          stroke="#fffaf0"
+          strokeWidth="6"
+          strokeDasharray="0.1 7"
+          strokeLinecap="round"
+        />
+        <rect x="105" y="168" width="20" height="92" rx="9" fill="#fffaf0" />
+        {/* Бүс, алтан горхи */}
+        <path d="M55 212Q115 228 175 212L176 230Q115 247 54 230Z" fill="#26262a" />
+        <rect x="99" y="214" width="32" height="26" rx="4" fill="none" stroke="#d9a647" strokeWidth="5" />
+        <rect x="111" y="222" width="14" height="10" rx="1.5" fill="#d9a647" />
+        <ellipse cx="115" cy="164" rx="46" ry="11" fill="#fffaf0" />
+        {/* Даллаж буй гар */}
         <g className="santa-arm">
           <path
-            d="M153 165c25-7 33-30 42-50"
+            d="M158 174C182 168 192 146 197 124"
             fill="none"
-            stroke="#9f312f"
-            strokeWidth="29"
+            stroke="url(#sv-coat)"
+            strokeWidth="26"
             strokeLinecap="round"
+          />
+          <ellipse
+            cx="198"
+            cy="120"
+            rx="15"
+            ry="9"
+            fill="#fffaf0"
+            transform="rotate(-70 198 120)"
           />
           <path
             d="M195 116c-4-17 5-32 16-30 12 2 9 16 2 23 10-3 15 5 9 12-8 10-19 9-27-5z"
             fill="#f2c5a5"
           />
         </g>
-        <g className="santa-head">
-          <circle cx="115" cy="108" r="49" fill="#f2c5a5" />
+        {/* Толгой: сахал, зураг дээрх нүүр, малгай */}
+        <g ref={headRef} className="santa-head">
           <path
-            d="M67 104c4 45 22 70 48 71 27 0 45-26 48-70-9 15-22 18-31 9-7 11-23 11-31 0-10 9-24 5-34-10z"
+            d="M80 96C70 132 80 172 115 182C150 172 160 132 150 96Q115 152 80 96Z"
             fill="#fffaf0"
+            stroke="#fffaf0"
+            strokeWidth="11"
+            strokeDasharray="0.1 9"
+            strokeLinecap="round"
           />
-          <path d="M78 76c9-47 50-60 80-24l17 23-98 4z" fill="#a43431" />
-          <circle cx="176" cy="76" r="15" fill="#fffaf0" />
-          <ellipse cx="99" cy="101" rx="7.5" ry="8" fill="#fffdf8" />
-          <ellipse cx="131" cy="101" rx="7.5" ry="8" fill="#fffdf8" />
-          <g ref={eyesRef} className="santa-pupils" fill="#23352d">
-            <circle cx="99" cy="102" r="3.8" />
-            <circle cx="131" cy="102" r="3.8" />
-            <circle cx="100.3" cy="100.6" r="1.1" fill="#fffdf8" />
-            <circle cx="132.3" cy="100.6" r="1.1" fill="#fffdf8" />
-          </g>
+          <ellipse cx="115" cy="106" rx="28" ry="36" fill="#f2c5a5" />
+          <image
+            href={santaFace}
+            x="66.4"
+            y="34.7"
+            width="97"
+            height="138"
+            preserveAspectRatio="xMidYMid slice"
+            clipPath="url(#sv-face)"
+          />
           <path
-            d="M106 121c7 5 14 5 20 0"
-            fill="none"
-            stroke="#9d4f43"
-            strokeWidth="3"
+            d="M82 68C86 30 128 14 154 30C170 40 178 58 184 76L172 80C166 64 158 54 150 60L148 66Q115 54 82 68Z"
+            fill="url(#sv-coat)"
+          />
+          <path
+            d="M80 82Q115 66 150 82L152 69Q115 52 78 69Z"
+            fill="#fffaf0"
+            stroke="#fffaf0"
+            strokeWidth="9"
+            strokeDasharray="0.1 7"
+            strokeLinecap="round"
+          />
+          <circle
+            cx="180"
+            cy="84"
+            r="10"
+            fill="#fffaf0"
+            stroke="#fffaf0"
+            strokeWidth="6"
+            strokeDasharray="0.1 5"
             strokeLinecap="round"
           />
         </g>
-        <path d="M41 278h57v16H37zM132 278h57l5 16h-62z" fill="#302c29" />
       </svg>
       <svg
         className="snowman"
