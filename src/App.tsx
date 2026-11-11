@@ -10,7 +10,16 @@ import {
   type Scores,
   type TaskKey,
 } from "./api";
-import { Brand, SantaVillage, Snowfall, Celebration, Icon } from "./components/Festive";
+import {
+  Brand,
+  SantaVillage,
+  Snowfall,
+  Celebration,
+  Icon,
+  SantaFlight,
+  SnowImp,
+} from "./components/Festive";
+import { useDepth } from "./components/Depth";
 import "./backend.css";
 type Page = "home" | "mystery" | "hunt" | "letters" | "quiz" | "leaderboard" | "admin" | "profile";
 const nav: { id: Page; label: string; icon: string }[] = [
@@ -187,6 +196,8 @@ function Home({ state, navigate }: { state: AppState; navigate: (p: Page) => voi
   const available = tasks.filter((t) => taskOpen(state, t.id));
   return (
     <main>
+      <SantaFlight />
+      <SnowImp />
       <section className="hero">
         <div className="hero-copy">
           <span className="eyebrow">Шинэ жилийн догдлолын долоо хоног</span>
@@ -1529,6 +1540,7 @@ function Profile() {
   );
 }
 export default function App() {
+  useDepth();
   const [state, setState] = useState<AppState | null>(null),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),

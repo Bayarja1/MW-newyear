@@ -404,3 +404,531 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Нүүр хуудас: чаргатай Санта баруунаас зүүн, буцаад зүүнээс баруун тийш нисэнэ (хамгийн урд давхарга) */
+.santa-flight {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 92px);
+  left: 0;
+  width: 100%;
+  height: 120px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1000;
+}
+.santa-flight__ship {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 380px;
+  animation: santa-route 24s linear infinite;
+  will-change: transform;
+}
+.santa-flight__art {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  animation: santa-bob 2.4s ease-in-out infinite;
+  filter: drop-shadow(0 6px 10px rgba(23, 63, 50, 0.18));
+}
+@keyframes santa-route {
+  /* Баруунаас зүүн тийш (зураг зүүн тийш харсан) */
+  0% { transform: translate(100vw, 18px) scaleX(1); }
+  23% { transform: translate(calc(50vw - 190px), -6px) scaleX(1); }
+  46% { transform: translate(-100%, 14px) scaleX(1); }
+  /* Дэлгэцийн гадна эргэнэ */
+  50% { transform: translate(-100%, 14px) scaleX(-1); }
+  /* Зүүнээс баруун тийш */
+  73% { transform: translate(calc(50vw - 190px), -4px) scaleX(-1); }
+  96% { transform: translate(100vw, 18px) scaleX(-1); }
+  100% { transform: translate(100vw, 18px) scaleX(1); }
+}
+@keyframes santa-bob {
+  0%, 100% { transform: translateY(0) rotate(-1.5deg); }
+  50% { transform: translateY(-8px) rotate(1.5deg); }
+}
+.santa-flight__deer {
+  animation: santa-gallop 0.28s ease-in-out infinite alternate;
+  animation-delay: var(--d, 0s);
+}
+/* Буга давхих: урд, хойд хөл эсрэг фазаар савлана */
+.santa-flight__leg {
+  transform-box: fill-box;
+  animation: deer-leg-front 0.56s ease-in-out infinite alternate;
+}
+.santa-flight__leg--front {
+  transform-origin: 85% 0%;
+  animation-delay: var(--d, 0s);
+}
+.santa-flight__leg--back {
+  transform-origin: 15% 0%;
+  animation-name: deer-leg-back;
+  animation-delay: calc(var(--d, 0s) - 0.28s);
+}
+@keyframes deer-leg-front {
+  from { transform: rotate(-30deg); }
+  to { transform: rotate(32deg); }
+}
+@keyframes deer-leg-back {
+  from { transform: rotate(-34deg); }
+  to { transform: rotate(26deg); }
+}
+@keyframes santa-gallop {
+  from { transform: translateY(-2px); }
+  to { transform: translateY(3px); }
+}
+.santa-flight__wave {
+  transform-box: fill-box;
+  transform-origin: 100% 100%;
+  animation: santa-wave 0.9s ease-in-out infinite alternate;
+}
+@keyframes santa-wave {
+  from { transform: rotate(-10deg); }
+  to { transform: rotate(14deg); }
+}
+.santa-flight__trail circle {
+  animation: santa-twinkle 0.8s ease-in-out infinite alternate;
+}
+.santa-flight__trail circle:nth-child(2n) {
+  animation-delay: -0.4s;
+}
+@keyframes santa-twinkle {
+  from { opacity: 0.2; }
+  to { opacity: 1; }
+}
+@media (max-width: 720px) {
+  .santa-flight {
+    top: calc(env(safe-area-inset-top, 0px) + 72px);
+    height: 80px;
+  }
+  .santa-flight__ship {
+    width: 230px;
+  }
+  @keyframes santa-route {
+    0% { transform: translate(100vw, 10px) scaleX(1); }
+    46% { transform: translate(-100%, 8px) scaleX(1); }
+    50% { transform: translate(-100%, 8px) scaleX(-1); }
+    96% { transform: translate(100vw, 10px) scaleX(-1); }
+    100% { transform: translate(100vw, 10px) scaleX(1); }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .santa-flight {
+    display: none;
+  }
+}
+
+/* Нүүр хуудас: Цасны чөтгөрхөн цасан хүн рүү цасан бөмбөг шиднэ (хамгийн урд давхарга) */
+.snow-imp {
+  position: fixed;
+  left: -200px;
+  top: 0;
+  width: 112px;
+  pointer-events: none;
+  z-index: 1001;
+  transition:
+    transform 0.45s cubic-bezier(0.3, 1.5, 0.5, 1),
+    opacity 0.3s ease;
+}
+.snow-imp[data-state="hide"] {
+  opacity: 0;
+  transform: translateY(36px) scale(0.55);
+}
+.snow-imp__art {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  filter: drop-shadow(0 10px 12px rgba(47, 74, 94, 0.22));
+}
+.snow-imp[data-facing="right"] .snow-imp__art {
+  transform: scaleX(-1);
+}
+.snow-imp__arm {
+  transform-box: view-box;
+  transform-origin: 36px 94px;
+}
+.snow-imp[data-state="throw"] .snow-imp__arm {
+  animation: imp-throw 0.78s ease-in-out;
+}
+.snow-imp[data-state="throw"] .snow-imp__ball {
+  animation: imp-ball 0.78s steps(1) forwards;
+}
+.snow-imp[data-state="laugh"] {
+  animation: imp-laugh 0.32s ease-in-out 4 alternate;
+}
+.snow-imp[data-state="laugh"] .snow-imp__grin {
+  stroke-width: 4;
+}
+.snow-imp__scarf {
+  transform-box: fill-box;
+  transform-origin: 0 0;
+  animation: imp-scarf 1.2s ease-in-out infinite alternate;
+}
+@keyframes imp-throw {
+  0% { transform: rotate(0deg); }
+  30% { transform: rotate(38deg); }
+  48% { transform: rotate(-46deg); }
+  100% { transform: rotate(0deg); }
+}
+@keyframes imp-ball {
+  0% { opacity: 1; }
+  34% { opacity: 0; }
+}
+@keyframes imp-laugh {
+  from { transform: translateY(0) rotate(-3deg); }
+  to { transform: translateY(-9px) rotate(3deg); }
+}
+@keyframes imp-scarf {
+  from { transform: rotate(-6deg); }
+  to { transform: rotate(8deg); }
+}
+.snow-imp-ball,
+.snow-imp-bit {
+  position: fixed;
+  z-index: 1002;
+  pointer-events: none;
+  border-radius: 50%;
+  background: #fff;
+}
+.snow-imp-ball {
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  box-shadow:
+    inset -3px -3px 0 #d6e8f5,
+    0 3px 6px rgba(47, 74, 94, 0.25);
+}
+.snow-imp-bit {
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  box-shadow: 0 1px 3px rgba(47, 74, 94, 0.25);
+}
+@media (max-width: 720px) {
+  .snow-imp {
+    width: 78px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .snow-imp {
+    display: none;
+  }
+}
+
+/* Сантагийн нүд, толгой хулганы заагчийг дагана */
+.santa-head,
+.santa-pupils {
+  transition: transform 0.18s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .santa-head,
+  .santa-pupils {
+    transition: none;
+  }
+}
+
+/* ===== Гүнзгий, хөдөлгөөнт 3D ===== */
+
+/* Hero: давхарга бүр хулганы эсрэг тийш өөр өөр хурдаар хөдөлнө (ойрхон нь илүү) */
+.hero-copy,
+.village-art .hero-tree,
+.village-art .santa,
+.village-art .snowman,
+.village-art .ornament,
+.village-art .snowbank,
+.snowfall {
+  transition: translate 0.35s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.hero-copy {
+  translate: calc(var(--mx, 0) * 7px) calc(var(--my, 0) * 5px);
+}
+.village-art .ornament {
+  translate: calc(var(--mx, 0) * -30px) calc(var(--my, 0) * -12px);
+}
+.village-art .hero-tree {
+  translate: calc(var(--mx, 0) * -9px) calc(var(--my, 0) * -4px);
+}
+.village-art .santa {
+  translate: calc(var(--mx, 0) * -15px) calc(var(--my, 0) * -6px);
+}
+.village-art .snowman {
+  translate: calc(var(--mx, 0) * -20px) calc(var(--my, 0) * -7px);
+}
+.village-art .snowbank {
+  translate: calc(var(--mx, 0) * -4px) 0;
+}
+.snowfall {
+  translate: calc(var(--mx, 0) * -24px) calc(var(--my, 0) * -8px);
+}
+/* Гарчиг бага зэрэг товойсон */
+.hero h1,
+.login-layout h1 {
+  text-shadow:
+    0 1px 0 #efe4cc,
+    0 2px 0 #e6d7b6,
+    0 3px 0 #ddc9a0,
+    0 10px 18px rgba(23, 63, 50, 0.16);
+}
+
+/* Карт, хавтангууд: давхар сүүдэр + дээд талын гэрлийн зураас */
+:root .panel,
+:root .stat,
+:root .door,
+:root .login-panel {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 2px 4px rgba(38, 47, 40, 0.04),
+    0 12px 24px rgba(38, 47, 40, 0.07),
+    0 32px 60px rgba(38, 47, 40, 0.09);
+}
+:root .door.current,
+:root .mystery-card {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -18px 40px rgba(0, 0, 0, 0.18),
+    0 4px 8px rgba(16, 47, 38, 0.12),
+    0 20px 40px rgba(16, 47, 38, 0.2),
+    0 44px 80px rgba(16, 47, 38, 0.18);
+}
+
+/* 3D хазайлт: заагчийн байрлалаар */
+:root .stat {
+  position: relative;
+  overflow: hidden;
+}
+.door,
+.stat,
+.mystery-card,
+.login-panel {
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.door.is-tilting:not(.locked),
+.stat.is-tilting,
+.mystery-card.is-tilting,
+.login-panel.is-tilting,
+.depth-tilt.is-tilting {
+  transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateY(-6px);
+  transition:
+    transform 0.12s ease-out,
+    box-shadow 0.3s ease;
+}
+.door:not(.is-tilting),
+.stat:not(.is-tilting),
+.mystery-card:not(.is-tilting),
+.login-panel:not(.is-tilting) {
+  transition:
+    transform 0.5s cubic-bezier(0.2, 0.8, 0.3, 1),
+    box-shadow 0.3s ease;
+}
+:root .door.is-tilting:not(.locked),
+:root .stat.is-tilting {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 6px 10px rgba(38, 47, 40, 0.06),
+    0 22px 40px rgba(38, 47, 40, 0.12),
+    0 48px 90px rgba(38, 47, 40, 0.14);
+}
+/* Гялбаа */
+.door::after,
+.stat::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at var(--gx, 50%) var(--gy, 0%),
+    rgba(255, 255, 255, 0.55),
+    rgba(255, 255, 255, 0) 55%
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  mix-blend-mode: soft-light;
+}
+.door.current::after {
+  background: radial-gradient(
+    circle at var(--gx, 50%) var(--gy, 0%),
+    rgba(234, 212, 155, 0.45),
+    rgba(234, 212, 155, 0) 55%
+  );
+  mix-blend-mode: screen;
+}
+.door.is-tilting::after,
+.stat.is-tilting::after {
+  opacity: 1;
+}
+
+/* Дардаг 3D товч: доод ирмэгтэй, дарахад суугдана */
+.primary:not(:disabled) {
+  background: linear-gradient(180deg, #2a6450, var(--green) 70%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 4px 0 #0c2a21,
+    0 12px 22px rgba(23, 63, 50, 0.24);
+}
+.primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 6px 0 #0c2a21,
+    0 18px 28px rgba(23, 63, 50, 0.26);
+}
+.primary:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 1px 0 #0c2a21,
+    0 5px 10px rgba(23, 63, 50, 0.2);
+}
+.secondary:not(:disabled) {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 3px 0 rgba(128, 100, 49, 0.35),
+    0 10px 18px rgba(38, 47, 40, 0.1);
+}
+.secondary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 5px 0 rgba(128, 100, 49, 0.35),
+    0 14px 22px rgba(38, 47, 40, 0.12);
+}
+.secondary:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 1px 0 rgba(128, 100, 49, 0.35),
+    0 4px 8px rgba(38, 47, 40, 0.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-copy,
+  .village-art .hero-tree,
+  .village-art .santa,
+  .village-art .snowman,
+  .village-art .ornament,
+  .village-art .snowbank,
+  .snowfall {
+    translate: none;
+  }
+}
+
+/* ===== Тасралтгүй цас (хэмжээ, байрлал, хурдыг Snowfall тооцно) ===== */
+.snowfall i {
+  position: absolute;
+  top: -12px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #fff, #f3f8fb 60%, #dfeaf1);
+  box-shadow: 0 0 3px rgba(110, 140, 160, 0.45);
+  animation-name: snow-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+@keyframes snow-fall {
+  0% { transform: translate3d(0, -2vh, 0); }
+  25% { transform: translate3d(calc(var(--drift, 0px) * 0.6), 25vh, 0); }
+  50% { transform: translate3d(calc(var(--drift, 0px) * -0.2), 52vh, 0); }
+  75% { transform: translate3d(var(--drift, 0px), 78vh, 0); }
+  100% { transform: translate3d(calc(var(--drift, 0px) * 0.3), 106vh, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .snowfall i {
+    animation-duration: 40s !important;
+  }
+}
+
+/* ===== Чарганаас унах бэлэг ===== */
+.santa-gift {
+  position: fixed;
+  z-index: 999;
+  pointer-events: none;
+  margin: -8px 0 0 -8px;
+  border-radius: 3px;
+  background:
+    linear-gradient(90deg, transparent 42%, var(--ribbon) 42% 58%, transparent 58%),
+    linear-gradient(0deg, transparent 42%, var(--ribbon) 42% 58%, transparent 58%),
+    var(--box);
+  box-shadow:
+    inset -3px -3px 0 rgba(0, 0, 0, 0.12),
+    inset 2px 2px 0 rgba(255, 255, 255, 0.25),
+    0 4px 8px rgba(23, 63, 50, 0.25);
+}
+.santa-gift::before,
+.santa-gift::after {
+  content: "";
+  position: absolute;
+  top: -6px;
+  width: 8px;
+  height: 7px;
+  border: 2px solid var(--ribbon);
+  border-radius: 50% 50% 0 50%;
+}
+.santa-gift::before {
+  left: calc(50% - 9px);
+  transform: rotate(10deg);
+}
+.santa-gift::after {
+  left: 50%;
+  transform: scaleX(-1) rotate(10deg);
+}
+
+/* ===== Мэндчилгээний цаас ===== */
+.santa-greeting {
+  position: fixed;
+  z-index: 1003;
+  pointer-events: none;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 18px 28px 20px;
+  min-width: 220px;
+  text-align: center;
+  background:
+    repeating-linear-gradient(transparent 0 25px, rgba(184, 138, 67, 0.12) 25px 26px),
+    linear-gradient(160deg, #fffefb, #f8f1e2);
+  border: 1px solid #e3d3ad;
+  border-radius: 4px;
+  box-shadow:
+    0 2px 0 #efe4cc,
+    0 18px 36px rgba(39, 49, 39, 0.22);
+  color: var(--green);
+  transform-origin: 50% 0;
+}
+.santa-greeting::before {
+  content: "";
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  width: 26px;
+  height: 18px;
+  margin-left: -13px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #e0585a, #a33c38 70%);
+  box-shadow: 0 3px 6px rgba(163, 60, 56, 0.35);
+}
+.santa-greeting span {
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold);
+  font-weight: 800;
+}
+.santa-greeting strong {
+  font-family: "Prata", Georgia, serif;
+  font-size: 30px;
+  line-height: 1.1;
+  font-weight: 400;
+  color: var(--red);
+}
+@media (max-width: 720px) {
+  .santa-greeting {
+    min-width: 170px;
+    padding: 14px 18px 16px;
+  }
+  .santa-greeting strong {
+    font-size: 22px;
+  }
+}

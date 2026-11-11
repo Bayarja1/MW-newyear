@@ -2229,18 +2229,9 @@ tr.me td:first-child {
   overflow: hidden;
 }
 .snowfall i {
-  --x: calc((var(--i) * 37) % 100);
+  /* Хэмжээ, байрлал, хурдыг Snowfall компонент inline-аар өгнө (backend.css). */
   position: absolute;
-  width: calc(2px + (var(--i) % 4) * 1px);
-  height: calc(2px + (var(--i) % 4) * 1px);
   border-radius: 50%;
-  background: white;
-  left: calc(var(--x) * 1%);
-  top: -10px;
-  opacity: calc(.25 + (var(--i) % 5) * .12);
-  animation: snowfall calc(8s + (var(--i) % 7) * 1s) linear infinite;
-  animation-delay: calc(var(--i) * -0.7s);
-  filter: drop-shadow(0 0 2px #a7b9b5);
 }
 .celebration {
   position: fixed;
