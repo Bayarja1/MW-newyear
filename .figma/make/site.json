@@ -1,0 +1,10 @@
+{
+  "description": "30 хамтрагчийн шинэ жилийн баярыг тоглоом, нууц захиа, бэлгийн эрэл, шууд сорил болон онооны самбараар зохион байгуулж, хамтын догдлолыг нэмнэ.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
