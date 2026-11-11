@@ -526,6 +526,10 @@
 }
 .door {
   min-height: 290px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
   border: 1px solid rgba(166, 129, 62, 0.24);
   border-radius: 12px;
   text-align: left;
@@ -576,7 +580,12 @@
   font:
     46px "Prata",
     serif;
-  margin: 7px 0 30px;
+  margin: 0 0 8px;
+}
+.door-copy {
+  display: block;
+  flex: 1;
+  overflow-wrap: anywhere;
 }
 .door-copy strong {
   display: block;
@@ -596,10 +605,9 @@
   color: #cbd8d1;
 }
 .door-points {
-  position: absolute;
-  bottom: 22px;
-  left: 22px;
-  right: 22px;
+  position: static;
+  width: 100%;
+  flex-shrink: 0;
   border-top: 1px solid currentColor;
   padding-top: 12px;
   font-size: 9px;

@@ -8,11 +8,11 @@ import {
   type LiveQuiz,
   type Question,
   type Scores,
+  type TaskKey,
 } from "./api";
 import { Brand, SantaVillage, Snowfall, Celebration, Icon } from "./components/Festive";
 import "./backend.css";
 type Page = "home" | "mystery" | "hunt" | "letters" | "quiz" | "leaderboard" | "admin" | "profile";
-const days = ["Даваа", "Мягмар", "Лхагва", "Пүрэв", "Баасан"];
 const nav: { id: Page; label: string; icon: string }[] = [
   { id: "home", label: "Миний долоо хоног", icon: "⌂" },
   { id: "mystery", label: "Энэ хэн бэ?", icon: "?" },
@@ -23,6 +23,48 @@ const nav: { id: Page; label: string; icon: string }[] = [
   { id: "admin", label: "Удирдлага", icon: "⚙" },
 ];
 const total = (s: Scores) => s.mystery + s.gift + s.letters + s.quiz;
+const tasks: { id: TaskKey; label: string; detail: string; points: string }[] = [
+  {
+    id: "mystery",
+    label: "Энэ хэн бэ?",
+    detail: "Гурван баримт · 10 хамтрагч",
+    points: "100 хүртэл оноо",
+  },
+  {
+    id: "hunt",
+    label: "Бэлгийн эрэл",
+    detail: "Хүрдээ эргүүл · Бэлгээ ол",
+    points: "100 хүртэл оноо",
+  },
+  {
+    id: "letters",
+    label: "Нууц захиа",
+    detail: "Хоёр хүнд сайхан үгээ бичээрэй",
+    points: "100 хүртэл оноо",
+  },
+  {
+    id: "quiz",
+    label: "Шинэ жилийн сорил",
+    detail: "Хамтдаа тоглох шууд сорил",
+    points: "100 хүртэл оноо",
+  },
+  {
+    id: "leaderboard",
+    label: "Ид шидийн тайлал",
+    detail: "Захиа унших · Онооны самбар",
+    points: "Нийт 400 оноо",
+  },
+];
+const taskOpen = (state: AppState, key: TaskKey) =>
+  state.access.some((a) => a.task === key && a.open);
+const visiblePage = (state: AppState, page: Page) =>
+  page === "home" ||
+  page === "profile" ||
+  (page === "admin"
+    ? state.me.role === "admin"
+    : state.me.role === "admin" ||
+      taskOpen(state, page as TaskKey) ||
+      (page === "letters" && state.released));
 function Header({ eyebrow, title, intro }: { eyebrow: string; title: string; intro: string }) {
   return (
     <header className="page-header">
@@ -142,13 +184,7 @@ function Community({ state }: { state: AppState }) {
   );
 }
 function Home({ state, navigate }: { state: AppState; navigate: (p: Page) => void }) {
-  const cards = [
-    ["Хоёр нууц, хоёр адал явдал", "Энэ хэн бэ? · Бэлгийн эрэл", "200 хүртэл оноо"],
-    ["Чамд хэлэх нэг сайхан үг", "Хоёр нууц захиа", "100 хүртэл оноо"],
-    ["Шинэ жилийн сорил", "Хамтдаа тоглох шууд сорил", "100 хүртэл оноо"],
-    ["Өнөөдөр түр амсхийе.", "Маргааш нууц тайлагдана.", "Үйл ажиллагаагүй"],
-    ["Ид шидийн тайлал", "Захиа · Оноо · Шагнал", "Шинэ оноо нэмэгдэхгүй"],
-  ];
+  const available = tasks.filter((t) => taskOpen(state, t.id));
   return (
     <main>
       <section className="hero">
@@ -170,76 +206,40 @@ function Home({ state, navigate }: { state: AppState; navigate: (p: Page) => voi
               <strong>{state.employees.length} хамтрагч</strong>
             </div>
             <div className="stat">
-              <small>Өнөөдөр</small>
-              <strong>
-                {state.stage < 0 ? "Хүлээгдэж байна" : days[state.stage] || "Арга хэмжээ дууссан"}
-              </strong>
+              <small>Нээлттэй таск</small>
+              <strong>{available.length} үйл ажиллагаа</strong>
             </div>
           </div>
-          <button
-            className="primary"
-            onClick={() =>
-              navigate(
-                state.stage === 0
-                  ? "mystery"
-                  : state.stage === 1
-                    ? "letters"
-                    : state.stage === 2
-                      ? "quiz"
-                      : "leaderboard",
-              )
-            }
-          >
-            Миний үйл ажиллагаа <Icon name="arrow" />
-          </button>
+          {available.length > 0 && (
+            <button className="primary" onClick={() => navigate(available[0].id)}>
+              Миний үйл ажиллагаа <Icon name="arrow" />
+            </button>
+          )}
         </div>
         <SantaVillage />
       </section>
       <section className="section-wrap">
         <Header
-          eyebrow={
-            state.settings.start_date
-              ? `${state.settings.start_date} · Улаанбаатарын цаг`
-              : "Эхлэх огноог зохион байгуулагч тохируулна"
-          }
-          title="Миний баярын долоо хоног"
-          intro="Хаалга бүрт шинэ дурсамж хүлээж байна."
+          eyebrow="Ид шидийн өртөө"
+          title="Нээлттэй үйл ажиллагаанууд"
+          intro="Зохион байгуулагчийн нээсэн таскуудад оролцоорой."
         />
+        {!available.length && (
+          <Empty>Одоогоор нээлттэй таск алга. Зохион байгуулагчийн нээлтийг хүлээнэ үү.</Empty>
+        )}
         <div className="doors">
-          {cards.map(([title, detail, points], i) => (
-            <div
-              key={i}
-              className={`door ${state.stage === i ? "current" : ""} ${!state.access[i].open ? "locked" : ""}`}
-            >
-              <span className="door-day">{days[i]}</span>
+          {available.map((t, i) => (
+            <div className="door current" key={t.id}>
+              <span className="door-day">НЭЭЛТТЭЙ</span>
               <b className="door-date">0{i + 1}</b>
               <span className="door-copy">
-                <strong>{title}</strong>
-                <small>{detail}</small>
+                <strong>{t.label}</strong>
+                <small>{t.detail}</small>
               </span>
-              <span className="door-points">{!state.access[i].open ? "Түгжээтэй" : points}</span>
-              {i === 0 && state.access[0].open ? (
-                <div className="button-row">
-                  <button className="secondary" onClick={() => navigate("mystery")}>
-                    Таах
-                  </button>
-                  <button className="secondary" onClick={() => navigate("hunt")}>
-                    Бэлэг хайх
-                  </button>
-                </div>
-              ) : (
-                i !== 3 && (
-                  <button
-                    className="secondary"
-                    disabled={!state.access[i].open}
-                    onClick={() =>
-                      navigate((["mystery", "letters", "quiz", "home", "leaderboard"] as Page[])[i])
-                    }
-                  >
-                    Нээх →
-                  </button>
-                )
-              )}
+              <button className="secondary" onClick={() => navigate(t.id)}>
+                Орох →
+              </button>
+              <span className="door-points">{t.points}</span>
             </div>
           ))}
         </div>
@@ -268,7 +268,7 @@ function Mystery({ state, refresh }: { state: AppState; refresh: () => Promise<v
   return (
     <main className="page-shell">
       <Header
-        eyebrow="Даваа · 100 хүртэл оноо"
+        eyebrow="100 хүртэл оноо"
         title="Энэ хэн бэ?"
         intro="Гурван баримтын эзнийг нийт хамтрагчдаасаа сонгоорой."
       />
@@ -349,7 +349,7 @@ function Mystery({ state, refresh }: { state: AppState; refresh: () => Promise<v
           ) : (
             <button
               className="primary wide"
-              disabled={!chosen || busy || !state.access[0].open}
+              disabled={!chosen || busy || !taskOpen(state, "mystery")}
               onClick={() =>
                 void run(async () => {
                   const r = await api<{ correct: boolean }>("/mystery/answer", "POST", {
@@ -388,7 +388,7 @@ function Hunt({ state, refresh }: { state: AppState; refresh: () => Promise<void
   return (
     <main className="page-shell">
       <Header
-        eyebrow="Даваа · 100 хүртэл оноо"
+        eyebrow="100 хүртэл оноо"
         title="Нуугдсан бэлгийн эрэл"
         intro="Хүн бүрт давтагдашгүй нэг бэлэг, нэг сэжүүр."
       />
@@ -404,7 +404,7 @@ function Hunt({ state, refresh }: { state: AppState; refresh: () => Promise<void
           </div>
           <button
             className="primary"
-            disabled={busy || !!gift || !state.access[0].open}
+            disabled={busy || !!gift || !taskOpen(state, "hunt")}
             onClick={() =>
               void run(async () => {
                 setSpinning(true);
@@ -460,7 +460,7 @@ function Hunt({ state, refresh }: { state: AppState; refresh: () => Promise<void
                   />
                   <button
                     className="primary wide"
-                    disabled={!file || busy || !state.access[0].open}
+                    disabled={!file || busy || !taskOpen(state, "hunt")}
                     onClick={() =>
                       void run(async () => {
                         if (file) {
@@ -505,7 +505,7 @@ function Letters({ state, refresh }: { state: AppState; refresh: () => Promise<v
   const dirty = useRef(false);
   const draftVersion = useRef(0);
   useEffect(() => {
-    if (!dirty.current || !state.access[1].open) return;
+    if (!dirty.current || !taskOpen(state, "letters")) return;
     const v = ++draftVersion.current;
     const timer = setTimeout(async () => {
       if (!dirty.current || v !== draftVersion.current) return;
@@ -520,11 +520,11 @@ function Letters({ state, refresh }: { state: AppState; refresh: () => Promise<v
       }
     }, 900);
     return () => clearTimeout(timer);
-  }, [recipient, message, state.access[1].open]);
+  }, [recipient, message, taskOpen(state, "letters")]);
   return (
     <main className="page-shell letters-page">
       <Header
-        eyebrow="Мягмар · 100 хүртэл оноо"
+        eyebrow="100 хүртэл оноо"
         title="Чамд хэлэх нэг сайхан үг"
         intro="Хоёр өөр хүнд бичсэн эхний хоёр захиа тус бүр 50 оноо. Нэмэлт захианд оноо нэмэхгүй."
       />
@@ -542,7 +542,7 @@ function Letters({ state, refresh }: { state: AppState; refresh: () => Promise<v
             Хүлээн авагч
             <select
               value={recipient}
-              disabled={!state.sent.length || busy || !state.access[1].open}
+              disabled={!state.sent.length || busy || !taskOpen(state, "letters")}
               onChange={(e) => {
                 dirty.current = true;
                 setRecipient(e.target.value);
@@ -566,7 +566,7 @@ function Letters({ state, refresh }: { state: AppState; refresh: () => Promise<v
               value={message}
               minLength={10}
               maxLength={2000}
-              disabled={!state.access[1].open || busy}
+              disabled={!taskOpen(state, "letters") || busy}
               onChange={(e) => {
                 dirty.current = true;
                 setMessage(e.target.value);
@@ -581,7 +581,9 @@ function Letters({ state, refresh }: { state: AppState; refresh: () => Promise<v
           <ErrorNote message={error} />
           <button
             className="seal-button"
-            disabled={busy || !recipient || message.trim().length < 10 || !state.access[1].open}
+            disabled={
+              busy || !recipient || message.trim().length < 10 || !taskOpen(state, "letters")
+            }
             onClick={() =>
               void run(async () => {
                 if (saving.current) throw new Error("Ноорог хадгалахыг түр хүлээнэ үү.");
@@ -613,7 +615,7 @@ function Letters({ state, refresh }: { state: AppState; refresh: () => Promise<v
             ))}
             {!state.sent.length && <p>Бичсэн захиа хараахан алга.</p>}
             <p className="privacy">
-              Захиа баасан гараг хүртэл нууц. Зөвхөн хүлээн авагч нь уншина.
+              Зохион байгуулагч нээх хүртэл захиа нууц. Зөвхөн хүлээн авагч нь уншина.
             </p>
           </section>
           <section className="panel letter-progress">
@@ -633,7 +635,7 @@ function Letters({ state, refresh }: { state: AppState; refresh: () => Promise<v
                   })
                 }
               >
-                ✉ Захиа {i + 1} · {state.released ? "Унших" : "Баасан гарагт нээгдэнэ"}
+                ✉ Захиа {i + 1} · {state.released ? "Унших" : "Зохион байгуулагч нээхийг хүлээнэ"}
               </button>
             ))}
             {opened && state.released && (
@@ -693,7 +695,7 @@ function Quiz({ isAdmin }: { isAdmin: boolean }) {
   return (
     <main className="quiz-shell">
       <Header
-        eyebrow="Лхагва · 100 хүртэл оноо"
+        eyebrow="100 хүртэл оноо"
         title="Ид шидийн өртөө · Шууд сорил"
         intro="Бүгд нэг асуултад нэгэн зэрэг хариулна. Зөв бүрд 10 оноо."
       />
@@ -820,14 +822,14 @@ function Leaderboard({ state }: { state: AppState }) {
   if (!state.released)
     return (
       <Empty>
-        <h2>Эцсийн байр баасан гарагт нээгдэнэ.</h2>
+        <h2>Онооны самбарыг зохион байгуулагч нээнэ.</h2>
         <p>Таны одоогийн оноо: {total(state.scores)} / 400</p>
       </Empty>
     );
   return (
     <main className="page-shell">
       <Header
-        eyebrow="Баасан · Нууц тайлагдлаа"
+        eyebrow="Нууц тайлагдлаа"
         title="Хамтдаа бүтээсэн догдлол"
         intro="Нийт 400 онооноос · Ижил оноотой ажилтнууд ижил байр эзэлнэ."
       />
@@ -936,7 +938,7 @@ function Admin({
         intro="Бодит ажилтнууд, контент, оноо болон баталгаажуулалтыг удирдана."
       />
       <div className="admin-tabs">
-        {["Тойм", "Ажилтнууд", "Сорил", "Бэлгүүд", "Хуваарь"].map((t) => (
+        {["Тойм", "Ажилтнууд", "Сорил", "Бэлгүүд", "Нээлт"].map((t) => (
           <button
             key={t}
             className={t === tab ? "active" : ""}
@@ -1333,106 +1335,50 @@ function Admin({
           <p>Сорилыг дуусгасны дараа дахин эхлүүлэхгүй.</p>
         </section>
       )}
-      {tab === "Хуваарь" && (
+      {tab === "Нээлт" && (
         <section className="panel admin-card">
-          <h2>Нээлтийн хуваарь</h2>
+          <h2>Таск нээх / хаах</h2>
           <p>
-            Улаанбаатарын цаг (UTC+8). Даваа: хоёр тоглоом, мягмар: захиа, лхагва: сорил. Пүрэв
-            гарагт тоглохгүй.
+            Огноо, гарагаас үл хамааран таск бүрийг тусад нь удирдана. Ажилтнууд зөвхөн нээлттэй
+            таскуудыг харна.
           </p>
           <div className="day-controls">
-            {data.access.map((a) => (
-              <div className="day-control" key={a.day}>
-                <div>
-                  <strong>{days[a.day]}</strong>
-                  <small>
-                    {
-                      [
-                        "Энэ хэн бэ? · Бэлгийн эрэл",
-                        "Нууц захиа бичих",
-                        "Шууд сорил",
-                        "Амралтын цонх · Даалгаваргүй",
-                        "Захиа унших · Онооны самбар",
-                      ][a.day]
-                    }
-                  </small>
-                  <b>{a.open ? "НЭЭЛТТЭЙ" : "ХААЛТТАЙ"}</b>
-                </div>
-                <select
-                  aria-label={days[a.day] + " гарагийн нээлт"}
-                  disabled={busy}
-                  value={a.mode}
-                  onChange={(e) => {
-                    const mode = e.target.value;
-                    void run(async () => {
-                      if (
-                        a.day === 4 &&
-                        mode === "open" &&
-                        !confirm(
-                          "Хүлээн авагчид захиагаа уншиж, бүх ажилтан онооны самбарыг харах боломжтой болно. Одоо нээх үү?",
+            {tasks.map((t) => {
+              const opened = data.access.some((a) => a.task === t.id && a.open);
+              return (
+                <div className="day-control" key={t.id}>
+                  <div>
+                    <strong>{t.label}</strong>
+                    <small>{t.detail}</small>
+                    <b>{opened ? "НЭЭЛТТЭЙ" : "ХААЛТТАЙ"}</b>
+                  </div>
+                  <button
+                    className={opened ? "secondary" : "primary"}
+                    disabled={busy}
+                    aria-pressed={opened}
+                    onClick={() =>
+                      void run(async () => {
+                        if (
+                          t.id === "leaderboard" &&
+                          !opened &&
+                          !confirm("Захиа болон нийт онооны самбарыг одоо нээх үү?")
                         )
-                      )
-                        return;
-                      await api("/admin/days", "PUT", { day: a.day, mode });
-                      await reload();
-                      setNotice(days[a.day] + " гарагийн нээлт шинэчлэгдлээ.");
-                    });
-                  }}
-                >
-                  <option value="auto">Хуваарийн дагуу</option>
-                  <option value="open">Гараар нээх</option>
-                  <option value="closed">Гараар хаах</option>
-                </select>
-              </div>
-            ))}
+                          return;
+                        await api("/admin/tasks", "PUT", { task: t.id, open: !opened });
+                        await reload();
+                        setNotice(t.label + (opened ? " хаагдлаа." : " нээгдлээ."));
+                      })
+                    }
+                  >
+                    {opened ? "Хаах" : "Нээх"}
+                  </button>
+                </div>
+              );
+            })}
           </div>
           <p>
-            Гараар тохируулсан төлөв огнооноос үл хамааран үйлчилнэ. Баасан гарагийг хаахад өмнө
-            уншсан захиаг буцаан нууцлахгүй. Пүрэвт даалгавар нэмэгдэхгүй.
+            Хаахад оноо, илгээсэн мэдээлэл устахгүй. Өмнө нь уншсан захиаг буцаан нууцлах боломжгүй.
           </p>
-          <form
-            className="question-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const values = Object.fromEntries(new FormData(e.currentTarget));
-              void run(async () => {
-                await api("/admin/settings", "PUT", values);
-                await reload();
-                setNotice("Хуваарь хадгалагдлаа.");
-              });
-            }}
-          >
-            <label>
-              Эхлэх даваа гараг
-              <input
-                type="date"
-                name="start_date"
-                defaultValue={data.settings.start_date}
-                required
-              />
-            </label>
-            <label>
-              Өдөр тутам нээх цаг
-              <input
-                type="time"
-                name="opening_time"
-                defaultValue={data.settings.opening_time}
-                required
-              />
-            </label>
-            <label>
-              Баасан: захиа, оноо нээх цаг
-              <input
-                type="time"
-                name="friday_time"
-                defaultValue={data.settings.friday_time}
-                required
-              />
-            </label>
-            <button className="primary" disabled={busy}>
-              Хуваарь хадгалах
-            </button>
-          </form>
           <p>Нууц захианы агуулга админд харагдахгүй.</p>
         </section>
       )}
@@ -1603,14 +1549,11 @@ export default function App() {
     content = <Admin refreshApp={refresh} openQuiz={() => navigate("quiz")} />;
   else if (page === "profile") content = <Profile />;
   else if (page === "home") content = <Home state={state} navigate={navigate} />;
+  else if (!visiblePage(state, page)) content = <Empty>Энэ таск хаалттай байна.</Empty>;
   else if (page === "leaderboard") content = <Leaderboard state={state} />;
   else if (page === "quiz") content = <Quiz isAdmin={!!admin} />;
-  else if (
-    !state.settings.prepared ||
-    (!state.access[({ mystery: 0, hunt: 0, letters: 1 } as Record<string, number>)[page]]?.open &&
-      page !== "letters")
-  )
-    content = <Empty>Энэ үйл ажиллагаа одоогоор нээлттэй биш байна.</Empty>;
+  else if (!state.settings.prepared)
+    content = <Empty>Зохион байгуулагч тоглоомыг бэлдэж байна.</Empty>;
   else if (page === "mystery") content = <Mystery state={state} refresh={refresh} />;
   else if (page === "hunt") content = <Hunt state={state} refresh={refresh} />;
   else content = <Letters state={state} refresh={refresh} />;
@@ -1623,7 +1566,7 @@ export default function App() {
           <Brand />
           <nav>
             {nav
-              .filter((n) => n.id !== "admin" || admin)
+              .filter((n) => visiblePage(state, n.id))
               .map((n) => (
                 <button
                   key={n.id}
@@ -1670,7 +1613,7 @@ export default function App() {
       {state && (
         <nav className="mobile-nav">
           {nav
-            .filter((n) => n.id !== "admin" || admin)
+            .filter((n) => visiblePage(state, n.id))
             .map((n) => (
               <button
                 key={n.id}

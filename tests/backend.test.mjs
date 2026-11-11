@@ -79,6 +79,7 @@ test("real HTTP flow: authorization, scoring, privacy, gifts and synchronized qu
         second_clue: "The second clue " + i,
       });
     await ok("/admin/prepare", "POST", {});
+    await ok("/admin/tasks", "PUT", { task: "mystery", open: true });
     assert.equal(all("SELECT * FROM mystery").length, 180);
     assert.equal(one("SELECT COUNT(DISTINCT recipient) AS n FROM partners").n, 18);
     assert.equal(one("SELECT COUNT(*) AS n FROM partners WHERE sender=recipient").n, 0);
@@ -109,6 +110,10 @@ test("real HTTP flow: authorization, scoring, privacy, gifts and synchronized qu
       );
     }
     assert.equal((await ok("/state")).scores.mystery, 100);
+    assert.equal((await request("/gifts/spin", "POST", {})).status, 403);
+    cookie = adminCookie;
+    await ok("/admin/tasks", "PUT", { task: "hunt", open: true });
+    cookie = employeeCookie;
     const spin = await ok("/gifts/spin", "POST", {});
     assert.equal((await ok("/gifts/spin", "POST", {})).id, spin.id);
     assert.equal(
@@ -131,6 +136,9 @@ test("real HTTP flow: authorization, scoring, privacy, gifts and synchronized qu
       .cookie;
     employeeCookie = (await request("/auth/login", "POST", { username: "person0", password }))
       .cookie;
+    cookie = employeeCookie;
+    cookie = adminCookie;
+    await ok("/admin/tasks", "PUT", { task: "letters", open: true });
     cookie = employeeCookie;
     const partner = one("SELECT recipient FROM partners WHERE sender=?", people[0]).recipient;
     await ok("/letters/draft", "PUT", { recipient: partner, message: "private draft text" });
@@ -173,6 +181,7 @@ test("real HTTP flow: authorization, scoring, privacy, gifts and synchronized qu
         category: i < 5 ? "newyear" : "company",
         seconds: 20,
       });
+    await ok("/admin/tasks", "PUT", { task: "quiz", open: true });
     await ok("/admin/quiz/control", "POST", { action: "start" });
     cookie = employeeCookie;
     await ok("/quiz/join", "POST", {});
@@ -204,12 +213,18 @@ test("real HTTP flow: authorization, scoring, privacy, gifts and synchronized qu
     employeeCookie = (await request("/auth/login", "POST", { username: "person0", password }))
       .cookie;
     cookie = employeeCookie;
+    cookie = adminCookie;
+    await ok("/admin/tasks", "PUT", { task: "hunt", open: false });
+    cookie = employeeCookie;
     assert.equal((await request("/gifts/spin", "POST", {})).status, 403);
     clock = Date.parse("2026-12-18T16:01:00+08:00");
     adminCookie = (await request("/auth/login", "POST", { username: "organizer", password }))
       .cookie;
     employeeCookie = (await request("/auth/login", "POST", { username: "person0", password }))
       .cookie;
+    cookie = employeeCookie;
+    cookie = adminCookie;
+    await ok("/admin/tasks", "PUT", { task: "leaderboard", open: true });
     cookie = employeeCookie;
     assert.equal((await ok("/leaderboard")).rows[0].total, 400);
     assert.equal((await request("/letters/" + letter.id)).status, 404);
@@ -225,23 +240,23 @@ test("real HTTP flow: authorization, scoring, privacy, gifts and synchronized qu
     assert.equal(cross.status, 403);
     const recipientCookie = cookie;
     cookie = adminCookie;
-    await ok("/admin/days", "PUT", { day: 4, mode: "closed" });
+    await ok("/admin/tasks", "PUT", { task: "leaderboard", open: false });
     cookie = recipientCookie;
     assert.equal((await request("/letters/" + letter.id)).status, 403);
     assert.equal((await request("/leaderboard")).status, 403);
-    assert.equal((await request("/admin/days", "PUT", { day: 0, mode: "open" })).status, 403);
+    assert.equal((await request("/admin/tasks", "PUT", { task: "hunt", open: true })).status, 403);
     cookie = adminCookie;
-    await ok("/admin/days", "PUT", { day: 0, mode: "open" });
+    await ok("/admin/tasks", "PUT", { task: "hunt", open: true });
     cookie = employeeCookie;
-    assert.equal((await ok("/state")).access[0].open, true);
+    assert.equal((await ok("/state")).access.find((a) => a.task === "hunt").open, true);
     // Friday calendar time does not prevent a manual Monday re-opening.
     await ok("/gifts/spin", "POST", {});
     cookie = adminCookie;
-    await ok("/admin/days", "PUT", { day: 0, mode: "closed" });
+    await ok("/admin/tasks", "PUT", { task: "hunt", open: false });
     cookie = employeeCookie;
     assert.equal((await request("/gifts/spin", "POST", {})).status, 403);
     cookie = adminCookie;
-    await ok("/admin/days", "PUT", { day: 4, mode: "open" });
+    await ok("/admin/tasks", "PUT", { task: "leaderboard", open: true });
     cookie = recipientCookie;
     assert.equal((await ok("/letters/" + letter.id)).message, "A very private first letter");
     await ok("/auth/logout", "POST", {});

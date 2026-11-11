@@ -1,4 +1,5 @@
-export type DayAccess = { day: number; mode: "auto" | "open" | "closed"; open: boolean };
+export type TaskKey = "mystery" | "hunt" | "letters" | "quiz" | "leaderboard";
+export type TaskAccess = { task: TaskKey; open: boolean };
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -59,7 +60,7 @@ export type AppState = {
   me: Person & { username: string; role: "admin" | "employee" };
   settings: Settings;
   stage: number;
-  access: DayAccess[];
+  access: TaskAccess[];
   released: boolean;
   scores: Scores;
   employees: Person[];
@@ -91,7 +92,7 @@ export type LiveQuiz = {
   score: number;
 };
 export type AdminData = {
-  access: DayAccess[];
+  access: TaskAccess[];
   settings: Settings;
   employees: (Person & { username: string; role: string; active: number; facts: string[] })[];
   gifts: Gift[];

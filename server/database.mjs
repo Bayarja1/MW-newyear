@@ -52,6 +52,16 @@ export function openDatabase(directory) {
       INSERT INTO day_controls(day) VALUES(0),(1),(2),(3),(4);
       PRAGMA user_version=2; COMMIT;`);
   }
+  if (db.prepare("PRAGMA user_version").get().user_version < 3) {
+    db.exec(`BEGIN IMMEDIATE;
+      CREATE TABLE task_controls (task TEXT PRIMARY KEY CHECK(task IN ('mystery','hunt','letters','quiz','leaderboard')), opened INTEGER NOT NULL DEFAULT 0 CHECK(opened IN (0,1)));
+      INSERT INTO task_controls SELECT 'mystery',mode='open' FROM day_controls WHERE day=0;
+      INSERT INTO task_controls SELECT 'hunt',mode='open' FROM day_controls WHERE day=0;
+      INSERT INTO task_controls SELECT 'letters',mode='open' FROM day_controls WHERE day=1;
+      INSERT INTO task_controls SELECT 'quiz',mode='open' FROM day_controls WHERE day=2;
+      INSERT INTO task_controls SELECT 'leaderboard',mode='open' FROM day_controls WHERE day=4;
+      PRAGMA user_version=3; COMMIT;`);
+  }
   const one = (sql, ...params) => db.prepare(sql).get(...params);
   const all = (sql, ...params) => db.prepare(sql).all(...params);
   const run = (sql, ...params) => db.prepare(sql).run(...params);

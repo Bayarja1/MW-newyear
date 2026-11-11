@@ -94,7 +94,10 @@
   cursor: default;
 }
 .door > button {
-  margin-top: 18px;
+  margin-top: 0;
+  align-self: flex-start;
+  flex-shrink: 0;
+  max-width: 100%;
 }
 .community-stars {
   display: grid;

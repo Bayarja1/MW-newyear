@@ -87,28 +87,14 @@ export function createApp({
   const { one, all, run, transaction, encrypt, decrypt } = store;
   const attempts = new Map();
   const settings = () => one("SELECT * FROM settings WHERE id=1");
-  const dayAccess = () => {
-    const c = settings();
-    const stage = dateStage(c, now());
-    const [hour, minute] = c.opening_time.split(":").map(Number);
-    const midnight = Date.parse(c.start_date + "T00:00:00+08:00");
-    return all("SELECT day,mode FROM day_controls ORDER BY day").map(({ day, mode }) => {
-      const automatic =
-        day === 4
-          ? !!c.released ||
-            (!!c.start_date &&
-              now() >= Date.parse(c.start_date + "T" + c.friday_time + ":00+08:00") + 4 * 86400000)
-          : stage === day && now() >= midnight + day * 86400000 + (hour * 60 + minute) * 60000;
-      return { day, mode, open: mode === "open" || (mode === "auto" && automatic) };
-    });
-  };
-  const released = () => dayAccess()[4].open;
+  const taskAccess = () =>
+    all("SELECT task,opened FROM task_controls").map((r) => ({ task: r.task, open: !!r.opened }));
+  const isOpen = (task) => !!one("SELECT opened FROM task_controls WHERE task=?", task)?.opened;
+  const released = () => isOpen("leaderboard");
   const employees = () =>
     all("SELECT id,name,department FROM users WHERE active=1 AND role='employee' ORDER BY name");
   function gate(kind) {
-    const day = { mystery: 0, hunt: 0, letters: 1, quiz: 2 }[kind];
-    if (!dayAccess()[day].open)
-      fail(403, "Энэ үйл ажиллагааг зохион байгуулагч хаасан эсвэл нээлтийн цаг болоогүй байна.");
+    if (!isOpen(kind)) fail(403, "Энэ таскийг зохион байгуулагч хаасан байна.");
     if (!settings().prepared) fail(409, "Зохион байгуулагч тоглоомыг бэлдээгүй байна.");
   }
   function score(id) {
@@ -154,12 +140,12 @@ export function createApp({
     }
     return {
       stage: q.stage,
-      open: dayAccess()[2].open,
+      open: isOpen("quiz"),
       position: q.position,
       total: ids.length,
       deadline: q.deadline,
       serverNow: now(),
-      question: safe,
+      question: isOpen("quiz") || user.role === "admin" ? safe : null,
       answer: question
         ? (one(
             "SELECT choice FROM quiz_answers WHERE user_id=? AND question_id=?",
@@ -212,7 +198,7 @@ export function createApp({
         prepared: !!c.prepared,
       },
       stage: dateStage(c, now()),
-      access: dayAccess(),
+      access: taskAccess(),
       released: released(),
       scores: score(user.id),
       employees: list,
@@ -220,10 +206,11 @@ export function createApp({
       partner: partner?.recipient || null,
       sent,
       inbox,
-      gift: gift
-        ? { ...gift, photo: gift.hasPhoto ? "/api/gifts/" + gift.id + "/photo" : null }
-        : null,
-      mystery,
+      gift:
+        isOpen("hunt") && gift
+          ? { ...gift, photo: gift.hasPhoto ? "/api/gifts/" + gift.id + "/photo" : null }
+          : null,
+      mystery: isOpen("mystery") ? mystery : [],
       draft: (() => {
         const d = one("SELECT body,recipient FROM drafts WHERE sender=?", user.id);
         return d ? { message: decrypt(d.body), recipient: d.recipient } : null;
@@ -309,7 +296,7 @@ export function createApp({
         }
         if (method === "GET" && path === "/api/state") return reply(res, state(user));
         if (method === "GET" && path === "/api/leaderboard") {
-          if (!released()) fail(403, "Онооны самбар баасан гарагт нээгдэнэ.");
+          if (!released()) fail(403, "Онооны самбарыг зохион байгуулагч нээнэ.");
           const rows = employees()
             .map((u) => {
               const s = score(u.id);
@@ -368,6 +355,7 @@ export function createApp({
           if (!g || (g.assigned !== user.id && user.role !== "admin"))
             fail(404, "Бэлэг олдсонгүй.");
           if (method === "GET") {
+            if (user.role !== "admin" && !isOpen("hunt")) fail(403, "Бэлгийн эрэл хаалттай байна.");
             if (!g.photo) fail(404, "Зураг байхгүй.");
             res.writeHead(200, {
               "Content-Type": g.mime,
@@ -443,7 +431,7 @@ export function createApp({
         }
         const letterPath = path.match(/^\/api\/letters\/([^/]+)$/);
         if (letterPath && method === "GET") {
-          if (!released()) fail(403, "Захиа баасан гарагт нээгдэнэ.");
+          if (!released()) fail(403, "Захиа унших хэсгийг зохион байгуулагч нээнэ.");
           const letter = one(
             "SELECT body FROM letters WHERE id=? AND recipient=?",
             letterPath[1],
@@ -452,7 +440,10 @@ export function createApp({
           if (!letter) fail(404, "Захиа олдсонгүй.");
           return reply(res, { message: decrypt(letter.body) });
         }
-        if (path === "/api/quiz" && method === "GET") return reply(res, quizState(user));
+        if (path === "/api/quiz" && method === "GET") {
+          if (user.role !== "admin" && !isOpen("quiz")) fail(403, "Сорил хаалттай байна.");
+          return reply(res, quizState(user));
+        }
         if (path === "/api/quiz/join" && method === "POST") {
           gate("quiz");
           if (user.role !== "employee") fail(403, "Ажилтны эрхээр оролцоно уу.");
@@ -493,7 +484,7 @@ export function createApp({
           if (method === "GET" && path === "/api/admin/data") {
             return reply(res, {
               settings: settings(),
-              access: dayAccess(),
+              access: taskAccess(),
               employees: all(
                 "SELECT id,username,name,department,role,active,facts FROM users ORDER BY name",
               ).map((u) => ({ ...u, facts: JSON.parse(u.facts) })),
@@ -608,16 +599,15 @@ export function createApp({
             );
             return reply(res, { ok: true });
           }
-          if (path === "/api/admin/days" && method === "PUT") {
+          if (path === "/api/admin/tasks" && method === "PUT") {
             const b = await jsonBody(req);
-            const day = int(b.day, 0, 4);
-            if (!["auto", "open", "closed"].includes(b.mode)) fail(400, "Нээлтийн горим буруу.");
-            run("UPDATE day_controls SET mode=? WHERE day=?", b.mode, day);
-            return reply(res, { access: dayAccess() });
-          }
-          if (path === "/api/admin/release" && method === "POST") {
-            run("UPDATE day_controls SET mode='open' WHERE day=4");
-            return reply(res, { ok: true });
+            if (
+              !["mystery", "hunt", "letters", "quiz", "leaderboard"].includes(b.task) ||
+              typeof b.open !== "boolean"
+            )
+              fail(400, "Таск эсвэл төлөв буруу.");
+            run("UPDATE task_controls SET opened=? WHERE task=?", Number(b.open), b.task);
+            return reply(res, { access: taskAccess() });
           }
           if (path === "/api/admin/gifts" && method === "POST") {
             if (one("SELECT COUNT(*) AS n FROM gifts").n >= 100)
