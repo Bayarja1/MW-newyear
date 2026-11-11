@@ -49,6 +49,8 @@ try {
       throw Error("CSV толгой: name,email,department");
     if (one("SELECT prepared FROM settings WHERE id=1").prepared)
       throw Error("Тоглоом бэлтгэгдсэн тул шинэ ажилтан нэмэхгүй.");
+    if (one("SELECT COUNT(*) AS n FROM partners").n)
+      throw Error("Захианы оноолт үүссэн тул шинэ ажилтан нэмэхгүй.");
     const records = [];
     const usernames = new Set();
     for (const cells of rows) {

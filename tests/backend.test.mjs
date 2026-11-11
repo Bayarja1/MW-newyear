@@ -78,12 +78,22 @@ test("real HTTP flow: authorization, scoring, privacy, gifts and synchronized qu
         clue: "The first clue " + i,
         second_clue: "The second clue " + i,
       });
+    // Захиа бэлтгэлээс өмнө нээгдэхэд оноолт үүсч, дараа нь бэлтгэл түүнийг ашиглана.
+    await ok("/admin/tasks", "PUT", { task: "letters", open: true });
+    assert.equal(one("SELECT COUNT(*) AS n FROM partners").n, 18);
+    const earlyPartners = all("SELECT * FROM partners ORDER BY sender");
     await ok("/admin/prepare", "POST", {});
+    assert.deepEqual(all("SELECT * FROM partners ORDER BY sender"), earlyPartners);
+    await ok("/admin/tasks", "PUT", { task: "letters", open: false });
     await ok("/admin/tasks", "PUT", { task: "mystery", open: true });
-    assert.equal(all("SELECT * FROM mystery").length, 180);
+    assert.equal(all("SELECT * FROM mystery").length, 90);
     assert.equal(one("SELECT COUNT(DISTINCT recipient) AS n FROM partners").n, 18);
     assert.equal(one("SELECT COUNT(*) AS n FROM partners WHERE sender=recipient").n, 0);
     assert.equal(one("SELECT COUNT(*) AS n FROM mystery WHERE player=target").n, 0);
+    assert.equal(
+      one("SELECT COUNT(*) AS n FROM partners p JOIN mystery m ON m.player=p.sender AND m.target=p.recipient").n,
+      0,
+    );
     const login = await request("/auth/login", "POST", { username: "person0", password });
     cookie = login.cookie;
     let employeeCookie = cookie;
@@ -101,6 +111,7 @@ test("real HTTP flow: authorization, scoring, privacy, gifts and synchronized qu
         .status,
       403,
     );
+    assert.equal(s.mystery.length, 5);
     for (const q of s.mystery) {
       const target = one("SELECT target FROM mystery WHERE id=?", q.id).target;
       await ok("/mystery/answer", "POST", { id: q.id, chosen: target });
@@ -269,4 +280,20 @@ test("real HTTP flow: authorization, scoring, privacy, gifts and synchronized qu
     app.store.db.close();
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('existing ten-person assignments migrate to five without deleting answers',async()=>{
+  const dir=mkdtempSync(join(tmpdir(),'dogdlol-migration-'));
+  let app=createApp({dataDir:dir});
+  try{
+    const s=app.store;
+    for(let i=0;i<11;i++)s.run("INSERT INTO users(id,username,name,role,password) VALUES(?,?,?,'employee','unused')",'u'+i,'u'+i,'Name '+i);
+    s.db.exec('ALTER TABLE mystery DROP COLUMN active; PRAGMA user_version=3');
+    for(let i=0;i<10;i++)s.run('INSERT INTO mystery(id,player,target,position,chosen,correct) VALUES(?,?,?,?,?,?)','q'+i,'u0','u'+(i+1),i,i>=8?'u'+(i+1):null,i>=8?1:null);
+    s.db.close();app=createApp({dataDir:dir});
+    assert.equal(app.store.all('SELECT * FROM mystery').length,10);
+    assert.equal(app.store.all('SELECT * FROM mystery WHERE active=1').length,5);
+    assert.equal(app.store.one('SELECT COUNT(*) AS n FROM mystery WHERE active=1 AND chosen IS NOT NULL').n,2);
+    assert.equal(app.score('u0').mystery,40);
+  }finally{app.store.db.close();rmSync(dir,{recursive:true,force:true});}
 });

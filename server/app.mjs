@@ -97,10 +97,25 @@ export function createApp({
     if (!isOpen(kind)) fail(403, "Энэ таскийг зохион байгуулагч хаасан байна.");
     if (!settings().prepared) fail(409, "Зохион байгуулагч тоглоомыг бэлдээгүй байна.");
   }
+  // Захианы эхний хүлээн авагчийг (нэг тойрог) санамсаргүй онооно. Аль хэдийн байвал хөндөхгүй.
+  // Дуудагч нь transaction дотор дуудна.
+  function ensurePartners() {
+    if (one("SELECT COUNT(*) AS n FROM partners").n) return;
+    const people = shuffle(employees());
+    if (people.length < 2) return;
+    people.forEach((p, i) =>
+      run("INSERT INTO partners VALUES(?,?)", p.id, people[(i + 1) % people.length].id),
+    );
+  }
+  function lettersGate() {
+    if (!isOpen("letters")) fail(403, "Энэ таскийг зохион байгуулагч хаасан байна.");
+    transaction(ensurePartners);
+  }
   function score(id) {
     return {
       mystery: Number(
-        one("SELECT COALESCE(SUM(correct),0)*10 AS n FROM mystery WHERE player=?", id).n,
+        one("SELECT COALESCE(SUM(correct),0)*20 AS n FROM mystery WHERE player=? AND active=1", id)
+          .n,
       ),
       gift: one("SELECT COUNT(*) AS n FROM gifts WHERE assigned=? AND status='approved'", id).n
         ? 100
@@ -161,6 +176,8 @@ export function createApp({
     };
   }
   function state(user) {
+    if (isOpen("letters") && !one("SELECT COUNT(*) AS n FROM partners").n)
+      transaction(ensurePartners);
     const c = settings();
     const list = employees();
     const partner = one("SELECT recipient FROM partners WHERE sender=?", user.id);
@@ -174,7 +191,7 @@ export function createApp({
       user.id,
     );
     const mystery = all(
-      "SELECT m.id,m.position,m.chosen,m.correct,u.facts FROM mystery m JOIN users u ON u.id=m.target WHERE m.player=? ORDER BY m.position",
+      "SELECT m.id,m.position,m.chosen,m.correct,u.facts FROM mystery m JOIN users u ON u.id=m.target WHERE m.player=? AND m.active=1 ORDER BY m.position",
       user.id,
     ).map((q) => ({
       id: q.id,
@@ -317,7 +334,11 @@ export function createApp({
         if (method === "POST" && path === "/api/mystery/answer") {
           gate("mystery");
           const b = await jsonBody(req);
-          const q = one("SELECT * FROM mystery WHERE id=? AND player=?", str(b.id), user.id);
+          const q = one(
+            "SELECT * FROM mystery WHERE id=? AND player=? AND active=1",
+            str(b.id),
+            user.id,
+          );
           if (!q) fail(404, "Асуулт олдсонгүй.");
           if (q.chosen) fail(409, "Энэ асуултад хариулсан байна.");
           if (
@@ -388,7 +409,7 @@ export function createApp({
           }
         }
         if (path === "/api/letters/draft" && method === "PUT") {
-          gate("letters");
+          lettersGate();
           const b = await jsonBody(req);
           const message = typeof b.message === "string" ? b.message : "";
           if (message.length > 2000) fail(400, "2000 хүртэл тэмдэгт бичнэ үү.");
@@ -401,7 +422,7 @@ export function createApp({
           return reply(res, { ok: true });
         }
         if (path === "/api/letters" && method === "POST") {
-          gate("letters");
+          lettersGate();
           const b = await jsonBody(req);
           const message = str(b.message, 10, 2000);
           const recipient = str(b.recipient);
@@ -413,7 +434,8 @@ export function createApp({
               fail(400, "Өөр ажилтан сонгоно уу.");
             const count = one("SELECT COUNT(*) AS n FROM letters WHERE sender=?", user.id).n;
             const partner = one("SELECT recipient FROM partners WHERE sender=?", user.id);
-            if (!count && recipient !== partner?.recipient)
+            if (!partner) fail(409, "Танд захианы хүн оноогдоогүй байна. Зохион байгуулагчид хандана уу.");
+            if (!count && recipient !== partner.recipient)
               fail(400, "Эхний захиаг системээс оноосон хүнд бичнэ үү.");
             if (one("SELECT id FROM letters WHERE sender=? AND recipient=?", user.id, recipient))
               fail(409, "Энэ хүнд захиа бичсэн байна.");
@@ -500,6 +522,8 @@ export function createApp({
           }
           if (method === "POST" && path === "/api/admin/employees") {
             if (settings().prepared) fail(409, "Тоглоом бэлтгэсний дараа ажилтан нэмж болохгүй.");
+            if (one("SELECT COUNT(*) AS n FROM partners").n)
+              fail(409, "Захианы оноолт үүссэн тул ажилтан нэмж болохгүй.");
             if (employees().length >= 100) fail(400, "100 ажилтан бүртгэгдсэн байна.");
             const b = await jsonBody(req);
             const username = str(b.username, 3, 80).toLowerCase();
@@ -550,24 +574,45 @@ export function createApp({
             transaction(() => {
               if (settings().prepared) fail(409, "Тоглоом аль хэдийн бэлэн.");
               const people = all("SELECT id,facts FROM users WHERE active=1 AND role='employee'");
-              if (people.length < 11)
-                fail(400, "10 өөр хүн таахын тулд дор хаяж 11 ажилтан шаардлагатай.");
+              // 5 зорилтот хүн + тэднээс өөр захианы хүн + өөрөө = дор хаяж 7.
+              if (people.length < 7)
+                fail(400, "Тоглоом бэлдэхэд дор хаяж 7 ажилтан шаардлагатай.");
               if (people.some((p) => JSON.parse(p.facts).length !== 3))
                 fail(400, "Ажилтан бүрийн гурван баримтыг бөглөнө үү.");
               if (one("SELECT COUNT(*) AS n FROM gifts").n < people.length)
                 fail(400, "Ажилтны тоогоор бэлгээ нэмнэ үү.");
-              const players = shuffle(people);
-              players.forEach((p, i) => {
-                run("INSERT INTO partners VALUES(?,?)", p.id, players[(i + 1) % players.length].id);
-                for (let n = 1; n <= 10; n++)
+              // Захианы оноолт (захиа нээгдэхэд аль хэдийн үүссэн байж болно) нэг тойрог үүсгэдэг.
+              // Тойргийн дагуу эрэмбэлбэл захианы хүн нь дараагийн хүн (i+1) болно.
+              ensurePartners();
+              const next = new Map(
+                all("SELECT sender,recipient FROM partners").map((r) => [r.sender, r.recipient]),
+              );
+              const ids = new Set(people.map((p) => p.id));
+              const players = [];
+              let cur = people[0].id;
+              for (let k = 0; k < people.length && cur; k++) {
+                players.push(cur);
+                cur = next.get(cur);
+              }
+              if (
+                next.size !== people.length ||
+                cur !== people[0].id ||
+                new Set(players).size !== people.length ||
+                players.some((id) => !ids.has(id))
+              )
+                fail(409, "Захианы оноолт ажилтны жагсаалттай таарахгүй байна.");
+              players.forEach((id, i) =>
+                // Зорилт i+2..i+6: захианы хүн (i+1) асуултын хариу болохгүй.
+                shuffle([2, 3, 4, 5, 6]).forEach((offset, position) =>
                   run(
                     "INSERT INTO mystery(id,player,target,position) VALUES(?,?,?,?)",
                     randomUUID(),
-                    p.id,
-                    players[(i + n) % players.length].id,
-                    n - 1,
-                  );
-              });
+                    id,
+                    players[(i + offset) % players.length],
+                    position,
+                  ),
+                ),
+              );
               run("UPDATE settings SET prepared=1 WHERE id=1");
             });
             return reply(res, { ok: true });
@@ -607,6 +652,7 @@ export function createApp({
             )
               fail(400, "Таск эсвэл төлөв буруу.");
             run("UPDATE task_controls SET opened=? WHERE task=?", Number(b.open), b.task);
+            if (b.task === "letters" && b.open) transaction(ensurePartners);
             return reply(res, { access: taskAccess() });
           }
           if (path === "/api/admin/gifts" && method === "POST") {

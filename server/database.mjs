@@ -62,6 +62,14 @@ export function openDatabase(directory) {
       INSERT INTO task_controls SELECT 'leaderboard',mode='open' FROM day_controls WHERE day=4;
       PRAGMA user_version=3; COMMIT;`);
   }
+  if (db.prepare("PRAGMA user_version").get().user_version < 4) {
+    db.exec(`BEGIN IMMEDIATE;
+      ALTER TABLE mystery ADD COLUMN active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1));
+      UPDATE mystery SET active=0 WHERE id IN (
+        SELECT id FROM (SELECT id,ROW_NUMBER() OVER(PARTITION BY player ORDER BY chosen IS NULL,position) AS rank FROM mystery) WHERE rank>5
+      );
+      PRAGMA user_version=4; COMMIT;`);
+  }
   const one = (sql, ...params) => db.prepare(sql).get(...params);
   const all = (sql, ...params) => db.prepare(sql).all(...params);
   const run = (sql, ...params) => db.prepare(sql).run(...params);

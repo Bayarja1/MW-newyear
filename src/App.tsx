@@ -27,7 +27,7 @@ const tasks: { id: TaskKey; label: string; detail: string; points: string }[] = 
   {
     id: "mystery",
     label: "Энэ хэн бэ?",
-    detail: "Гурван баримт · 10 хамтрагч",
+    detail: "Гурван баримт · 5 хамтрагч",
     points: "100 хүртэл оноо",
   },
   {
@@ -261,7 +261,7 @@ function Mystery({ state, refresh }: { state: AppState; refresh: () => Promise<v
   if (!current)
     return (
       <Empty>
-        <h2>Бүх 10 асуултаа дуусгалаа!</h2>
+        <h2>Бүх 5 асуултаа дуусгалаа!</h2>
         <p>Таны оноо: {state.scores.mystery} / 100</p>
       </Empty>
     );
@@ -275,8 +275,8 @@ function Mystery({ state, refresh }: { state: AppState; refresh: () => Promise<v
       <div className="game-layout">
         <section className="mystery-card">
           <div className="card-top">
-            <span>Асуулт {current.position + 1} / 10</span>
-            <span>Зөв бүрд 10 оноо</span>
+            <span>Асуулт {state.mystery.findIndex((q) => q.id === current.id) + 1} / 5</span>
+            <span>Зөв бүрд 20 оноо</span>
           </div>
           <div className="detective">
             <div className="silhouette">
@@ -295,7 +295,7 @@ function Mystery({ state, refresh }: { state: AppState; refresh: () => Promise<v
         </section>
         <section className="answer-panel panel">
           <div className="progress-label">
-            <strong>{answered} / 10 хариулсан</strong>
+            <strong>{answered} / 5 хариулсан</strong>
             <span>{state.scores.mystery} оноо</span>
           </div>
           <input
@@ -327,7 +327,7 @@ function Mystery({ state, refresh }: { state: AppState; refresh: () => Promise<v
           {result !== null ? (
             <>
               <p className={`feedback ${result ? "success" : "error"}`}>
-                {result ? "Зөв хариуллаа! +10 оноо" : "Энэ удаа таарсангүй."}
+                {result ? "Зөв хариуллаа! +20 оноо" : "Энэ удаа таарсангүй."}
               </p>
               <button
                 className="primary"
@@ -494,12 +494,21 @@ function Hunt({ state, refresh }: { state: AppState; refresh: () => Promise<void
   );
 }
 function Letters({ state, refresh }: { state: AppState; refresh: () => Promise<void> }) {
-  const [recipient, setRecipient] = useState(
-      state.sent.length ? state.draft?.recipient || "" : state.partner || "",
+  const nameOf = (id: string | null) => state.employees.find((p) => p.id === id)?.name || "";
+  // 1-р захиа: системээс оноосон хүнд (заавал). 2-р захиа: өөрийн сонголтоор (заавал биш).
+  const firstSent = !!state.partner && state.sent.some((l) => l.recipient === state.partner);
+  const step: 1 | 2 = firstSent ? 2 : 1;
+  const chosenLetter = state.sent.find((l) => l.recipient !== state.partner);
+  const [choice, setChoice] = useState(
+      state.draft?.recipient && state.draft.recipient !== state.partner
+        ? state.draft.recipient
+        : "",
     ),
     [message, setMessage] = useState(state.draft?.message || ""),
     [opened, setOpened] = useState<{ id: string; message: string } | null>(null),
     [saved, setSaved] = useState("");
+  const recipient = step === 1 ? state.partner || "" : choice;
+  const setRecipient = setChoice;
   const { busy, error, run } = useAction();
   const saving = useRef(false);
   const dirty = useRef(false);
@@ -526,40 +535,73 @@ function Letters({ state, refresh }: { state: AppState; refresh: () => Promise<v
       <Header
         eyebrow="100 хүртэл оноо"
         title="Чамд хэлэх нэг сайхан үг"
-        intro="Хоёр өөр хүнд бичсэн эхний хоёр захиа тус бүр 50 оноо. Нэмэлт захианд оноо нэмэхгүй."
+        intro="1-р захиаг системээс оноосон хүндээ, 2-р захиаг хүссэн хүндээ бичнэ. Тус бүр 50 оноо."
       />
+      <ol className="letter-steps">
+        <li className={firstSent ? "done" : "active"}>
+          <b>{firstSent ? "✓" : "1"}</b>
+          <span>
+            Системээс оноосон хүн
+            <strong>{nameOf(state.partner) || "Оноолт хүлээгдэж байна"}</strong>
+          </span>
+          <em>{firstSent ? "Илгээсэн · 50" : "Заавал"}</em>
+        </li>
+        <li className={chosenLetter ? "done" : step === 2 ? "active" : "locked"}>
+          <b>{chosenLetter ? "✓" : "2"}</b>
+          <span>
+            Өөрийн сонголтоор
+            <strong>{chosenLetter ? chosenLetter.name : "Хүссэн хүндээ"}</strong>
+          </span>
+          <em>
+            {chosenLetter ? "Илгээсэн · 50" : step === 2 ? "Заавал биш" : "1-р захианы дараа"}
+          </em>
+        </li>
+      </ol>
       <div className="letter-layout">
         <section className="stationery">
           <div className="paper-top">
             <span>
-              {state.sent.length === 0
-                ? "Системээс оноосон эхний хүн"
-                : "Өөрийн сонгох хүлээн авагч"}
+              {step === 1
+                ? "1-р захиа · Системээс оноосон хүн"
+                : chosenLetter
+                  ? "Нэмэлт захиа · оноогүй"
+                  : "2-р захиа · Өөрийн сонголтоор (заавал биш)"}
             </span>
             <span>{state.scores.letters} / 100 оноо</span>
           </div>
-          <label>
-            Хүлээн авагч
-            <select
-              value={recipient}
-              disabled={!state.sent.length || busy || !taskOpen(state, "letters")}
-              onChange={(e) => {
-                dirty.current = true;
-                setRecipient(e.target.value);
-              }}
-            >
-              <option value="">Хүлээн авагч сонгох</option>
-              {state.employees
-                .filter(
-                  (p) => p.id !== state.me.id && !state.sent.some((l) => l.recipient === p.id),
-                )
-                .map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-            </select>
-          </label>
+          {step === 1 ? (
+            <div className="assigned-recipient">
+              <small>Хүлээн авагч</small>
+              {state.partner ? (
+                <strong>{nameOf(state.partner)}</strong>
+              ) : (
+                <p>Танд хүн оноогдоогүй байна. Зохион байгуулагчид хандана уу.</p>
+              )}
+            </div>
+          ) : (
+            <label>
+              Хүлээн авагч
+              <select
+                value={recipient}
+                disabled={busy || !taskOpen(state, "letters")}
+                onChange={(e) => {
+                  dirty.current = true;
+                  setRecipient(e.target.value);
+                }}
+              >
+                <option value="">Хүлээн авагч сонгох</option>
+                {state.employees
+                  .filter(
+                    (p) => p.id !== state.me.id && !state.sent.some((l) => l.recipient === p.id),
+                  )
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          )}
           <label>
             Таны сайхан үг
             <textarea
@@ -1171,7 +1213,7 @@ function Admin({
             <h2>Тоглоомоо бэлдэх</h2>
             <p>
               Ажилтан бүрийн 3 баримт, ажилтны тоогоор бэлэг, эхлэх огноог эхлээд оруулна.
-              Бэлтгэсний дараа хүн бүрт өөрөөс нь бусад 10 хүний асуулт болон эхний захианы хүлээн
+              Бэлтгэсний дараа хүн бүрт өөрөөс нь бусад 5 хүний асуулт болон эхний захианы хүлээн
               авагч оноогдоно.
             </p>
             <p>Бэлтгэсний дараа оролцогч, баримтыг өөрчлөхгүй.</p>
@@ -1491,9 +1533,7 @@ export default function App() {
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [page, setPage] = useState<Page>("home"),
-    [reduced, setReduced] = useState(
-      () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-    ),
+    [loggingOut, setLoggingOut] = useState(false),
     [celebrate, setCelebrate] = useState(false);
   const previous = useRef<AppState | null>(null);
   const refresh = useCallback(async () => {
@@ -1539,7 +1579,7 @@ export default function App() {
   }, [state]);
   const navigate = (p: Page) => {
     setPage(p);
-    window.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
   const admin = state?.me.role === "admin";
   let content: ReactNode;
@@ -1552,15 +1592,16 @@ export default function App() {
   else if (!visiblePage(state, page)) content = <Empty>Энэ таск хаалттай байна.</Empty>;
   else if (page === "leaderboard") content = <Leaderboard state={state} />;
   else if (page === "quiz") content = <Quiz isAdmin={!!admin} />;
+  else if (page === "letters") content = <Letters state={state} refresh={refresh} />;
   else if (!state.settings.prepared)
     content = <Empty>Зохион байгуулагч тоглоомыг бэлдэж байна.</Empty>;
   else if (page === "mystery") content = <Mystery state={state} refresh={refresh} />;
   else if (page === "hunt") content = <Hunt state={state} refresh={refresh} />;
   else content = <Letters state={state} refresh={refresh} />;
   return (
-    <div className={`app ${reduced ? "reduce-motion" : ""}`}>
-      {!reduced && <Snowfall />}
-      <Celebration active={!reduced && celebrate} />
+    <div className="app">
+      <Snowfall />
+      <Celebration active={celebrate} />
       {state && (
         <header className="topbar">
           <Brand />
@@ -1579,13 +1620,6 @@ export default function App() {
           </nav>
           <div className="header-actions">
             <button
-              className="motion-toggle"
-              onClick={() => setReduced(!reduced)}
-              aria-pressed={reduced}
-            >
-              Хөдөлгөөн {reduced ? "асаах" : "багасгах"}
-            </button>
-            <button
               className="profile"
               aria-label="Миний бүртгэл"
               onClick={() => navigate("profile")}
@@ -1593,17 +1627,38 @@ export default function App() {
               {state.me.name.slice(0, 2)}
             </button>
             <button
-              className="text-button"
-              onClick={() =>
-                void api("/auth/logout", "POST", {})
-                  .then(() => {
-                    setState(null);
-                    navigate("home");
-                  })
-                  .catch((e) => setError(e.message))
-              }
+              type="button"
+              className="logout-button"
+              disabled={loggingOut}
+              onClick={async () => {
+                if (loggingOut) return;
+                setLoggingOut(true);
+                try {
+                  await api("/auth/logout", "POST", {});
+                  setState(null);
+                  previous.current = null;
+                  navigate("home");
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : "Гарах үед алдаа гарлаа.");
+                } finally {
+                  setLoggingOut(false);
+                }
+              }}
             >
-              Гарах
+              <svg
+                aria-hidden="true"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M9 5H5v14h4M14 8l4 4-4 4M9 12h9" />
+              </svg>
+              {loggingOut ? "Гарч байна…" : "Гарах"}
             </button>
           </div>
         </header>
