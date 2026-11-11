@@ -311,6 +311,19 @@ const GIFT_COLORS = [
   ["#3d6f8e", "#fffdf8"],
 ];
 
+const NEW_YEAR_GREETINGS = [
+  { lang: "mn", top: "Шинэ жилийн", main: "мэнд хүргэе!" },
+  { lang: "en", top: "Wishing you a", main: "Happy New Year!" },
+  { lang: "ja", top: "あけまして", main: "おめでとう!" },
+  { lang: "ko", top: "새해", main: "복 많이 받으세요!" },
+  { lang: "zh", top: "恭贺", main: "新年快乐!" },
+  { lang: "ru", top: "Поздравляем", main: "С Новым годом!" },
+  { lang: "es", top: "Te deseamos", main: "¡Feliz Año Nuevo!" },
+  { lang: "fr", top: "Nous vous souhaitons", main: "Bonne année !" },
+  { lang: "de", top: "Wir wünschen", main: "Frohes neues Jahr!" },
+  { lang: "it", top: "Tanti auguri", main: "Buon anno!" },
+];
+
 export function SantaFlight() {
   const deer = [0, 62, 124, 186];
   const shipRef = useRef<HTMLDivElement>(null);
@@ -376,6 +389,7 @@ export function SantaFlight() {
 
     let lastFacing: boolean | null = null;
     let greeted = false;
+    let greetingIndex = 0;
     const dropGreeting = () => {
       const s = sleigh();
       if (!s) return;
@@ -387,21 +401,27 @@ export function SantaFlight() {
       greeted = true;
       const el = add(document.createElement("div"));
       el.className = "santa-greeting";
-      el.innerHTML = "<span>Шинэ жилийн</span><strong>мэнд хүргэе!</strong>";
+      const greeting = NEW_YEAR_GREETINGS[greetingIndex % NEW_YEAR_GREETINGS.length];
+      greetingIndex++;
+      el.lang = greeting.lang;
+      const top = document.createElement("span");
+      const main = document.createElement("strong");
+      top.textContent = greeting.top;
+      main.textContent = greeting.main;
+      el.append(top, main);
       el.style.left = s.x + "px";
       el.style.top = s.y + "px";
-      const fall = Math.max(120, window.innerHeight * 0.42 - s.y);
+      const fall = Math.max(320, window.innerHeight - s.y + 100);
       el.animate(
         [
           { transform: "translate(-50%, 0) scale(.35) rotate(-14deg)", opacity: 0 },
-          { transform: `translate(-50%, ${fall * 0.25}px) scale(.85) rotate(12deg)`, opacity: 1, offset: 0.18 },
-          { transform: `translate(-30%, ${fall * 0.55}px) scale(1) rotate(-9deg)`, offset: 0.36 },
-          { transform: `translate(-70%, ${fall * 0.82}px) scale(1) rotate(6deg)`, offset: 0.52 },
-          { transform: `translate(-50%, ${fall}px) scale(1) rotate(-2deg)`, opacity: 1, offset: 0.66 },
-          { transform: `translate(-50%, ${fall}px) scale(1) rotate(-2deg)`, opacity: 1, offset: 0.9 },
-          { transform: `translate(-50%, ${fall + 30}px) scale(.96) rotate(-2deg)`, opacity: 0 },
+          { transform: `translate(-50%, ${fall * 0.12}px) scale(.88) rotate(10deg)`, opacity: 1, offset: 0.14 },
+          { transform: `translate(-34%, ${fall * 0.38}px) scale(1) rotate(-8deg)`, opacity: 1, offset: 0.38 },
+          { transform: `translate(-66%, ${fall * 0.68}px) scale(1) rotate(6deg)`, opacity: 0.95, offset: 0.68 },
+          { transform: `translate(-45%, ${fall * 0.9}px) scale(.96) rotate(-3deg)`, opacity: 0.35, offset: 0.9 },
+          { transform: `translate(-50%, ${fall}px) scale(.9) rotate(2deg)`, opacity: 0 },
         ],
-        { duration: 7000, easing: "ease-in-out" },
+        { duration: 6200, easing: "cubic-bezier(.28,.1,.55,1)" },
       )
         .finished.catch(() => {})
         .then(() => drop(el));
@@ -544,9 +564,8 @@ export function Brand() {
 
 export function SantaVillage() {
   const santaRef = useRef<SVGSVGElement>(null);
-  const headRef = useRef<SVGGElement>(null);
   const eyesRef = useRef<SVGGElement>(null);
-  // Сантагийн нүд (мөн толгой нь бага зэрэг) хулганы заагчийг дагаж харна.
+  // Сантагийн зөвхөн нүдний хүүхэн хараа хулганы заагчийг дагана.
   useEffect(() => {
     let frame = 0;
     let point: { x: number; y: number } | null = null;
@@ -554,7 +573,7 @@ export function SantaVillage() {
       frame = 0;
       const svg = santaRef.current;
       const ctm = svg?.getScreenCTM();
-      if (!svg || !ctm || !eyesRef.current || !headRef.current) return;
+      if (!svg || !ctm || !eyesRef.current) return;
       let dx = 0,
         dy = 0;
       if (point) {
@@ -568,7 +587,6 @@ export function SantaVillage() {
         dy = (vy / dist) * reach;
       }
       eyesRef.current.style.transform = `translate(${dx * 3.6}px, ${dy * 3.6}px)`;
-      headRef.current.style.transform = `translate(${dx * 3}px, ${dy * 2.2}px)`;
     };
     const queue = () => {
       if (!frame) frame = requestAnimationFrame(apply);
@@ -659,7 +677,7 @@ export function SantaVillage() {
             fill="#f2c5a5"
           />
         </g>
-        <g ref={headRef} className="santa-head">
+        <g className="santa-head">
           <circle cx="115" cy="108" r="49" fill="#f2c5a5" />
           <path
             d="M67 104c4 45 22 70 48 71 27 0 45-26 48-70-9 15-22 18-31 9-7 11-23 11-31 0-10 9-24 5-34-10z"

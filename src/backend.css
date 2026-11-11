@@ -70,6 +70,149 @@
   color: var(--muted);
   font-size: 13px;
 }
+
+.profile-wizard {
+  width: min(720px, 100%);
+  margin: 0 auto 70px;
+  padding: 34px;
+  display: grid;
+  gap: 30px;
+  overflow: hidden;
+}
+.wizard-progress {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  position: relative;
+}
+.wizard-progress::before {
+  content: "";
+  position: absolute;
+  top: 18px;
+  left: 16.66%;
+  right: 16.66%;
+  height: 2px;
+  background: rgba(23, 63, 50, 0.14);
+}
+.wizard-step {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+.wizard-step span {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2px solid rgba(23, 63, 50, 0.18);
+  background: var(--pearl);
+  font-weight: 800;
+}
+.wizard-step small {
+  font-size: 12px;
+  font-weight: 700;
+}
+.wizard-step.current,
+.wizard-step.complete {
+  color: var(--green);
+}
+.wizard-step.current span,
+.wizard-step.complete span {
+  border-color: var(--gold);
+  background: var(--green);
+  color: white;
+  box-shadow: 0 6px 18px rgba(23, 63, 50, 0.2);
+}
+.wizard-content {
+  display: grid;
+  gap: 20px;
+  animation: wizard-in 0.32s ease both;
+}
+.wizard-content > div {
+  text-align: center;
+}
+.wizard-content h2 {
+  margin: 4px 0 8px;
+  font-family: Prata, serif;
+  font-size: clamp(25px, 4vw, 34px);
+  color: var(--green);
+}
+.wizard-content > div > p:last-child {
+  margin: 0 auto;
+  max-width: 510px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+.wizard-icon {
+  width: 62px;
+  height: 62px;
+  margin: 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 20px;
+  background: linear-gradient(145deg, #d8b86c, #9b6d29);
+  color: white;
+  font-size: 28px;
+  box-shadow: 0 12px 24px rgba(157, 113, 48, 0.24);
+}
+.profile-wizard label {
+  font-weight: 700;
+  color: var(--green);
+}
+.profile-wizard input {
+  min-height: 52px;
+  font-size: 17px;
+}
+.wizard-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 4px;
+}
+.wizard-actions .primary {
+  min-width: 210px;
+}
+.wizard-finished {
+  padding: 20px 0 8px;
+}
+.wizard-finished .wizard-icon {
+  border-radius: 50%;
+  background: linear-gradient(145deg, #34765a, #173f32);
+}
+@keyframes wizard-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@media (max-width: 600px) {
+  .profile-wizard {
+    padding: 24px 18px;
+  }
+  .wizard-step small {
+    font-size: 10px;
+  }
+  .wizard-actions {
+    flex-direction: column-reverse;
+  }
+  .wizard-actions button,
+  .wizard-actions .primary {
+    width: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wizard-content {
+    animation: none;
+  }
+}
 .hero-stats .stat,
 .admin-stats .stat {
   display: grid;
@@ -617,13 +760,11 @@
   }
 }
 
-/* Сантагийн нүд, толгой хулганы заагчийг дагана */
-.santa-head,
+/* Сантагийн зөвхөн нүдний хүүхэн хулганы заагчийг дагана */
 .santa-pupils {
   transition: transform 0.18s ease-out;
 }
 @media (prefers-reduced-motion: reduce) {
-  .santa-head,
   .santa-pupils {
     transition: none;
   }
@@ -632,7 +773,6 @@
 /* ===== Гүнзгий, хөдөлгөөнт 3D ===== */
 
 /* Hero: давхарга бүр хулганы эсрэг тийш өөр өөр хурдаар хөдөлнө (ойрхон нь илүү) */
-.hero-copy,
 .village-art .hero-tree,
 .village-art .santa,
 .village-art .snowman,
@@ -640,9 +780,6 @@
 .village-art .snowbank,
 .snowfall {
   transition: translate 0.35s cubic-bezier(0.2, 0.7, 0.3, 1);
-}
-.hero-copy {
-  translate: calc(var(--mx, 0) * 7px) calc(var(--my, 0) * 5px);
 }
 .village-art .ornament {
   translate: calc(var(--mx, 0) * -30px) calc(var(--my, 0) * -12px);
@@ -913,6 +1050,7 @@
   font-size: 13px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+  white-space: nowrap;
   color: var(--gold);
   font-weight: 800;
 }
@@ -921,6 +1059,7 @@
   font-size: 30px;
   line-height: 1.1;
   font-weight: 400;
+  white-space: nowrap;
   color: var(--red);
 }
 @media (max-width: 720px) {

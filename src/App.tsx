@@ -1494,47 +1494,134 @@ function Review({
 }
 function Profile() {
   const { busy, error, run } = useAction();
-  const [done, setDone] = useState(false);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [current, setCurrent] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [validation, setValidation] = useState("");
+  const submit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setValidation("");
+    if (step === 1) {
+      if (!current) return setValidation("Одоогийн нууц үгээ оруулна уу.");
+      setStep(2);
+      return;
+    }
+    if (step === 2) {
+      if (password.length < 10)
+        return setValidation("Шинэ нууц үг дор хаяж 10 тэмдэгтэй байна.");
+      if (password !== confirm) return setValidation("Шинэ нууц үгүүд таарахгүй байна.");
+      void run(async () => {
+        await api("/auth/password", "POST", { current, password });
+        setCurrent("");
+        setPassword("");
+        setConfirm("");
+        setStep(3);
+      });
+    }
+  };
   return (
     <main className="page-shell">
       <Header
         eyebrow="Миний бүртгэл"
         title="Нууц үг солих"
-        intro="Анхны нууц үгээ зөвхөн өөрийн мэдэх нууц үгээр солино уу."
+        intro="Хэдхэн алхмаар нууц үгээ аюулгүй шинэчилнэ үү."
       />
-      <form
-        className="panel login-panel"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const f = e.currentTarget;
-          const fields = Object.fromEntries(new FormData(f));
-          void run(async () => {
-            await api("/auth/password", "POST", fields);
-            setDone(true);
-            f.reset();
-          });
-        }}
-      >
-        <label>
-          Одоогийн нууц үг
-          <input name="current" type="password" autoComplete="current-password" required />
-        </label>
-        <label>
-          Шинэ нууц үг
-          <input
-            name="password"
-            type="password"
-            autoComplete="new-password"
-            required
-            minLength={10}
-            maxLength={128}
-          />
-        </label>
-        <ErrorNote message={error} />
-        {done && <p className="feedback success">Нууц үг солигдлоо.</p>}
-        <button className="primary" disabled={busy}>
-          Хадгалах
-        </button>
+      <form className="panel profile-wizard" onSubmit={submit}>
+        <div className="wizard-progress" aria-label="Нууц үг солих алхмууд">
+          {[1, 2, 3].map((item) => (
+            <div
+              key={item}
+              className={`wizard-step ${step === item ? "current" : ""} ${step > item ? "complete" : ""}`}
+            >
+              <span>{step > item ? "✓" : item}</span>
+              <small>{item === 1 ? "Баталгаа" : item === 2 ? "Шинэчлэх" : "Бэлэн"}</small>
+            </div>
+          ))}
+        </div>
+
+        {step === 1 && (
+          <section className="wizard-content">
+            <span className="wizard-icon" aria-hidden="true">✦</span>
+            <div>
+              <p className="eyebrow">1-р алхам</p>
+              <h2>Эхлээд таныг баталгаажуулъя</h2>
+              <p>Одоо ашиглаж буй нууц үгээ оруулна уу.</p>
+            </div>
+            <label>
+              Одоогийн нууц үг
+              <input
+                value={current}
+                onChange={(e) => setCurrent(e.target.value)}
+                type="password"
+                autoComplete="current-password"
+                autoFocus
+                required
+              />
+            </label>
+          </section>
+        )}
+
+        {step === 2 && (
+          <section className="wizard-content">
+            <span className="wizard-icon" aria-hidden="true">✳</span>
+            <div>
+              <p className="eyebrow">2-р алхам</p>
+              <h2>Шинэ нууц үгээ зохионо уу</h2>
+              <p>Дор хаяж 10 тэмдэгтэй, зөвхөн өөрийн мэдэх нууц үг сонгоорой.</p>
+            </div>
+            <label>
+              Шинэ нууц үг
+              <input
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                type="password"
+                autoComplete="new-password"
+                autoFocus
+                required
+                minLength={10}
+                maxLength={128}
+              />
+            </label>
+            <label>
+              Шинэ нууц үгээ давтана уу
+              <input
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                type="password"
+                autoComplete="new-password"
+                required
+                minLength={10}
+                maxLength={128}
+              />
+            </label>
+          </section>
+        )}
+
+        {step === 3 && (
+          <section className="wizard-content wizard-finished" role="status">
+            <span className="wizard-icon">✓</span>
+            <div>
+              <p className="eyebrow">Амжилттай</p>
+              <h2>Нууц үг солигдлоо</h2>
+              <p>Дараагийн удаа шинэ нууц үгээрээ нэвтэрнэ үү.</p>
+            </div>
+          </section>
+        )}
+
+        <ErrorNote message={validation || error} />
+        {step < 3 && (
+          <div className="wizard-actions">
+            {step === 2 && (
+              <button type="button" className="secondary" onClick={() => setStep(1)} disabled={busy}>
+                Өмнөх
+              </button>
+            )}
+            <button className="primary" disabled={busy}>
+              {step === 1 ? "Үргэлжлүүлэх" : busy ? "Хадгалж байна…" : "Нууц үгээ солих"}
+            </button>
+          </div>
+        )}
       </form>
     </main>
   );

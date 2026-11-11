@@ -61,8 +61,8 @@
   min-height: 100vh;
   overflow: hidden;
   background:
-    radial-gradient(circle at 82% 4%, rgba(235, 212, 154, 0.26), transparent 24%),
-    linear-gradient(#fbf8f0, #f4eee2);
+    radial-gradient(circle at 82% 4%, rgba(235, 212, 154, 0.22), transparent 24%),
+    linear-gradient(180deg, #b8d8e8 0%, #dcecf2 55%, #f3ebdd 100%);
 }
 .topbar {
   height: 84px;
