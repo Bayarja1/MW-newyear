@@ -1024,6 +1024,7 @@
   gap: 2px;
   padding: 18px 28px 20px;
   min-width: 220px;
+  max-width: calc(100vw - 24px);
   text-align: center;
   background:
     repeating-linear-gradient(transparent 0 25px, rgba(184, 138, 67, 0.12) 25px 26px),
@@ -1058,7 +1059,7 @@
 }
 .santa-greeting strong {
   font-family: "Prata", Georgia, serif;
-  font-size: 30px;
+  font-size: clamp(19px, 2.2vw, 27px);
   line-height: 1.1;
   font-weight: 400;
   white-space: nowrap;

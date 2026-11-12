@@ -405,11 +405,9 @@ export function SantaFlight() {
       const greeting = NEW_YEAR_GREETINGS[greetingIndex % NEW_YEAR_GREETINGS.length];
       greetingIndex++;
       el.lang = greeting.lang;
-      const top = document.createElement("span");
       const main = document.createElement("strong");
-      top.textContent = greeting.top;
-      main.textContent = greeting.main;
-      el.append(top, main);
+      main.textContent = `${greeting.top} ${greeting.main}`;
+      el.append(main);
       el.style.left = s.x + "px";
       el.style.top = s.y + "px";
       const fall = Math.max(320, window.innerHeight - s.y + 100);
@@ -808,61 +806,20 @@ function LushTree() {
 }
 
 export function SantaVillage() {
-  const santaRef = useRef<SVGSVGElement>(null);
-  const headRef = useRef<SVGGElement>(null);
-  // Сантагийн толгой хулганы заагч руу бага зэрэг эргэж харна.
-  useEffect(() => {
-    let frame = 0;
-    let point: { x: number; y: number } | null = null;
-    const apply = () => {
-      frame = 0;
-      const svg = santaRef.current;
-      const ctm = svg?.getScreenCTM();
-      if (!svg || !ctm || !headRef.current) return;
-      let dx = 0,
-        dy = 0;
-      if (point) {
-        const cx = ctm.a * 115 + ctm.c * 102 + ctm.e;
-        const cy = ctm.b * 115 + ctm.d * 102 + ctm.f;
-        const vx = point.x - cx,
-          vy = point.y - cy;
-        const dist = Math.hypot(vx, vy) || 1;
-        const reach = Math.min(1, dist / 220);
-        dx = (vx / dist) * reach;
-        dy = (vy / dist) * reach;
-      }
-      headRef.current.style.transform = `translate(${dx * 4}px, ${dy * 2.5}px) rotate(${dx * 5}deg)`;
-    };
-    const queue = () => {
-      if (!frame) frame = requestAnimationFrame(apply);
-    };
-    const move = (e: PointerEvent) => {
-      point = { x: e.clientX, y: e.clientY };
-      queue();
-    };
-    const leave = () => {
-      point = null;
-      queue();
-    };
-    window.addEventListener("pointermove", move, { passive: true });
-    document.documentElement.addEventListener("pointerleave", leave);
-    window.addEventListener("blur", leave);
-    return () => {
-      cancelAnimationFrame(frame);
-      window.removeEventListener("pointermove", move);
-      document.documentElement.removeEventListener("pointerleave", leave);
-      window.removeEventListener("blur", leave);
-    };
-  }, []);
   return (
     <div className="village-art" aria-label="Өвлийн баярын тосгон">
       <span className="ornament ornament-a" />
       <span className="ornament ornament-b" />
       <span className="ornament ornament-c" />
       <LushTree />
+      <img
+        className="santa santa-photo"
+        src="/santa-main-character.png?v=5"
+        alt="Гараа даллаж буй Санта"
+        draggable={false}
+      />
       <svg
-        ref={santaRef}
-        className="santa"
+        className="santa santa-original"
         viewBox="0 0 230 310"
         role="img"
         aria-label="Гараа даллаж буй өвлийн өвгөн"
@@ -942,7 +899,7 @@ export function SantaVillage() {
           />
         </g>
         {/* Толгой: сахал, зураг дээрх нүүр, малгай */}
-        <g ref={headRef} className="santa-head">
+        <g className="santa-head">
           <path
             d="M80 96C70 132 80 172 115 182C150 172 160 132 150 96Q115 152 80 96Z"
             fill="#fffaf0"
