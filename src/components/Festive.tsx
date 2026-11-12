@@ -812,12 +812,41 @@ export function SantaVillage() {
       <span className="ornament ornament-b" />
       <span className="ornament ornament-c" />
       <LushTree />
-      <img
+      {/* Зураг өөрөө өөрчлөгдөхгүй: нэг зургийг 2 давхарлаж, гарыг нь CSS-ээр даллуулна. */}
+      <svg
         className="santa santa-photo"
-        src="/santa-main-character.png?v=5"
-        alt="Гараа даллаж буй Санта"
-        draggable={false}
-      />
+        viewBox="0 0 1174 1340"
+        preserveAspectRatio="xMidYMax meet"
+        role="img"
+        aria-label="Гараа даллаж буй Санта"
+      >
+        <defs>
+          <mask id="santa-hand-hole" maskUnits="userSpaceOnUse" x="0" y="0" width="1174" height="1340">
+            <rect width="1174" height="1340" fill="#fff" />
+            <polygon
+              points="900,300 1010,262 1150,262 1150,492 1078,490 1050,500 1000,497 960,478 944,462 934,446 926,438 900,436"
+              fill="#000"
+            />
+          </mask>
+          <clipPath id="santa-hand-clip">
+            <polygon points="895,295 1010,258 1155,258 1155,495 1078,492 1048,512 995,519 958,505 940,488 932,455 924,442 895,438" />
+          </clipPath>
+        </defs>
+        <image
+          href="/santa-main-character.png?v=5"
+          width="1174"
+          height="1340"
+          mask="url(#santa-hand-hole)"
+        />
+        <g className="santa-hand">
+          <image
+            href="/santa-main-character.png?v=5"
+            width="1174"
+            height="1340"
+            clipPath="url(#santa-hand-clip)"
+          />
+        </g>
+      </svg>
       <svg
         className="santa santa-original"
         viewBox="0 0 230 310"

@@ -1104,3 +1104,19 @@
     animation: none;
   }
 }
+
+/* Санта: зураг дээрх гарыг бугуйгаар нь даллуулна (зураг өөрчлөгдөхгүй) */
+.santa-hand {
+  transform-box: view-box;
+  transform-origin: 990px 505px;
+  animation: santa-hand-wave 1.4s ease-in-out infinite alternate;
+}
+@keyframes santa-hand-wave {
+  from { transform: rotate(-9deg); }
+  to { transform: rotate(8deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .santa-hand {
+    animation: none;
+  }
+}
